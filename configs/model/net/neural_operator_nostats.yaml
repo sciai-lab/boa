@@ -1,0 +1,15 @@
+_target_: boa.model.net.boa_net.BOA
+
+basis_info: ${model.basis_info}
+
+boa_stack:
+  _target_: boa.model.net.boa_block_stack.BoaBlockStack
+  block: 
+    _target_: boa.model.net.boa_block.BoaBlock
+    _partial_: true
+  n_blocks: 4
+  basis_info: ${model.basis_info}
+  hidden_channels: 32
+
+num_orbitals: 8
+direct_gs_prediction: True

@@ -1,0 +1,32 @@
+_target_: boa.model.module.ChgLightningModule
+
+criterion: mae
+vnode_elem: 8
+pbc: false
+dft_basis_set: 'def2-qzvppd'
+dft_wt_aug: false
+concat_basis: false
+beta: 2.5
+lmax_restriction: true
+lmax_relax: 0
+uncontracted: false
+orb_cutoff: 3.0
+expo_trainable: false
+magnitude_weighting: false
+
+basis_info: 
+  _target_: boa.data.basis_info.BasisInfo.from_atomic_numbers_with_even_tempered_basis
+  basis: ${model.dft_basis_set}
+  atomic_numbers: [1, 6, 7, 8, 9]
+  beta: 2.5
+  even_tempered: ${model.dft_wt_aug}
+  uncontracted: True
+  add_basis_functions:
+    H: [[4, [1.0, 1.0]]]
+    C: [[5, [0.8, 1.0]]]
+    N: [[5, [1.0, 1.0]]]
+    O: [[5, [1.0, 1.0]]]
+    F: [[5, [1.5, 1.0]]]
+
+defaults:
+  - net: neural_operator_nostats

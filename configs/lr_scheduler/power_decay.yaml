@@ -1,0 +1,4 @@
+_target_: scdp.model.utils.PowerDecayScheduler
+warmup_steps: 1000
+alpha: 0.96
+beta: 4433 # decay to 1e-5 in 500k steps

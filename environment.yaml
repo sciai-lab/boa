@@ -5,7 +5,7 @@
 # - conda allows for installing packages without requiring certain compilers or
 #   libraries to be available in the system, since it installs precompiled binaries
 
-name: myenv
+name: boa
 
 channels:
   - pytorch
@@ -20,26 +20,47 @@ channels:
 # users, but allows for different minor and patch versions of packages where backwards
 # compatibility is usually guaranteed
 
+
+
 dependencies:
   - python=3.10
-  - pytorch=2.*
-  - torchvision=0.*
-  - lightning=2.*
-  - torchmetrics=0.*
-  - hydra-core=1.*
-  - rich=13.*
-  - pre-commit=3.*
-  - pytest=7.*
-
-  # --------- loggers --------- #
+  - ase=3.22.1
+  - basis_set_exchange=0.9.1
+  - hydra-core=1.3.2
+  - ipdb=0.13.13
+  - lz4=4.3.2
+  - numpy=1.26.4
+  - omegaconf=2.3.0
+  - pandas=2.2.1
+  - plotly=5.18.0
+  - pymatgen=2023.11.12
+  - python-dotenv=1.0.1
+  - scipy=1.12.0
+  - tqdm=4.66.1
+  - pip>=23
+  - pip:
+      - --extra-index-url=https://download.pytorch.org/whl/cu126
+      - torch_ema==0.3
+      - mp-pyrho==0.3.0
+      - hydra-optuna-sweeper
+      - hydra-colorlog
+      - rootutils
+      - lmdb==1.4.1
+      - p_tqdm==1.4.0
+      - torch
+      - lightning==2.1.3
+      - e3nn==0.4.4
+      - tensorboard
+  # The following are optional loggers, uncomment as needed:
   # - wandb
   # - neptune-client
   # - mlflow
   # - comet-ml
   # - aim>=3.16.2 # no lower than 3.16.2, see https://github.com/aimhubio/aim/issues/2550
 
-  - pip>=23
-  - pip:
-      - hydra-optuna-sweeper
-      - hydra-colorlog
-      - rootutils
+#pyscf
+#e3nn==0.5.6
+#loguru
+#zarr
+#rdkit
+#torch_geometric

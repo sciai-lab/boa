@@ -1,0 +1,70 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+env:
+  DFT_DATA: ${{ github.workspace }}/data
+  DFT_MODELS: ${{ github.workspace }}/models
+
+jobs:
+  run_tests_ubuntu:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false || github.event_name == 'push'
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        environment: ["environment_cpu.yaml"]
+
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check space before micromamba
+        run: |
+          df -h
+        shell: bash -el {0}
+
+      - name: Setup Micromamba
+        uses: mamba-org/setup-micromamba@v1.9.0
+        with:
+          environment-file: ${{matrix.environment}}
+          init-shell: bash
+          cache-environment: true
+
+      - name: Check space after micromamba
+        run: |
+          df -h
+          du -h -d 1 $(dirname $(dirname $(dirname $(which python))))
+        shell: bash -el {0}
+
+      - name: List dependencies
+        run: |
+          python -m pip list
+        shell: bash -el {0}
+
+      - name: Install package
+        run: |
+          pip install -e .
+        shell: bash -el {0}
+
+      - name: Install sh
+        run: |
+          pip install sh
+        shell: bash -el {0}
+
+      - name: Run pytest
+        run: |
+          pytest -m "not slow" -v
+        shell: bash -el {0}
+
+      - name: Check space after pytest
+        run: df -h
+        shell: bash -el {0}
