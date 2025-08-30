@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 from torch.utils.data import Dataset, Subset
 
 from scdp.common.pyg import DataLoader
-from scdp.data.dataloader import ProbeDataLoader
+from boa.data.dataloader import ProbeDataLoader
 from boa.data.basis_info import BasisInfo
 
 

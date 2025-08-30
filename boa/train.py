@@ -10,6 +10,7 @@ import rootutils
 import torch
 from lightning.pytorch import Callback
 from omegaconf import DictConfig, ListConfig
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 from lightning.pytorch import seed_everything
 from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
@@ -43,7 +44,7 @@ SLURMEnvironment.detect = lambda: False
 
 pylogger = logging.getLogger(__name__)
 
-torch.set_float32_matmul_precision("highest")
+
 
 def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
     """Instantiate the callbacks given their configuration.

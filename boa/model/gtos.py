@@ -23,15 +23,15 @@ class RadialCorrection(nn.Module):
         self.radial_embedding = GaussianSmearing(
                 0.0,
                 3.0,
-                5,
+                50,
                 1.0,
             )
         
         # mlp that takes radial embedding and outputs correction
         self.mlp = nn.Sequential(
-            nn.Linear(5, 5),
+            nn.Linear(50, 50),
             nn.SiLU(),
-            nn.Linear(5, channels),
+            nn.Linear(50, channels),
         )
 
     def forward(self, r):
@@ -130,8 +130,8 @@ class GTOs(nn.Module):
         denominator = torch.special.gammaln(power)
         lognorm = (numerator - denominator) / 2
         return lognorm
-
-    def compute(self, vecs, expo_scaling=None, index_atom=None, square_angular=False):
+        
+    def compute(self, vecs, expo_scaling=None, index_atom=None):
         # multiple r's will be the same here, so only calculate unique ones and index them later
         # first find the unique r's and the inverse index
         vecs, index = torch.unique(vecs, return_inverse=True, sorted=True, dim=0)
@@ -162,12 +162,6 @@ class GTOs(nn.Module):
         uncontracted = radial[:, self.rad_idx] * spherical[:, self.sph_idx]
         # Explicitly expand uncontracted to full size
         uncontracted_full = uncontracted[index]
-
-        if square_angular:
-            uncontracted_squared_angular = radial[:, self.rad_idx] * spherical[:, self.sph_idx]**2
-            uncontracted_squared_angular_full = uncontracted_squared_angular[index]
-            return uncontracted_full, uncontracted_squared_angular_full
-
         if self.contraction is not None:
             contracted = torch.zeros([index.shape[0], self.con_idx.max() + 1], device=vecs.device, dtype=uncontracted.dtype)            
             contracted.scatter_add_(1, self.con_idx.repeat(index.shape[0], 1), uncontracted_full)
@@ -256,9 +250,7 @@ class GTOs(nn.Module):
         if coeffs is not None:
             # n_total_probes x 1
             if coeffs.dim() == 3:
-                vals, vals_squared = self.compute(vecs, expo_scaling, index_atom, square_angular=True)
-                half_dim = coeffs.shape[-1] // 2
-                vals = torch.cat([vals.unsqueeze(-1) * coeffs[index_atom][..., :half_dim], vals_squared.unsqueeze(-1) * coeffs[index_atom][..., half_dim:]], dim=-1)
+                vals = self.compute(vecs, expo_scaling, index_atom).unsqueeze(-1) * coeffs[index_atom]
             else:
                 vals = self.compute(vecs, expo_scaling, index_atom) * coeffs[index_atom]
             if return_full:

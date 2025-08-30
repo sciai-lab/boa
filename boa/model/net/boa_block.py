@@ -641,16 +641,15 @@ class BoaBlock(nn.Module):
                         f"NaN detected in atom_repr for atom type {atom_type} after linear2"
                     )
 
-        if self.quadratic_readout_v2:
-            x = from_atom_repr(
-                y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr
-            )
-            x = to_dense_batch(x, coeff_ind_to_node_ind, max_num_nodes=max(self.basis_info.basis_dim_per_atom))[0]
-            edge_features_a, edge_features_b = self.edge_update(
-                x, edge_index, edge_features_a, edge_features_b, edge_matrices
-            )
-            if torch.isnan(edge_features_a).any() or torch.isnan(edge_features_b).any():
-                raise ValueError("NaN detected in edge features after edge update")
-            return atom_repr, edge_features_a, edge_features_b
+        x = from_atom_repr(
+            y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr
+        )
+        x = to_dense_batch(x, coeff_ind_to_node_ind, max_num_nodes=max(self.basis_info.basis_dim_per_atom))[0]
+        edge_features_a, edge_features_b = self.edge_update(
+            x, edge_index, edge_features_a, edge_features_b, edge_matrices
+        )
+        if torch.isnan(edge_features_a).any() or torch.isnan(edge_features_b).any():
+            raise ValueError("NaN detected in edge features after edge update")
+        return atom_repr, edge_features_a, edge_features_b
 
         return atom_repr, None, None

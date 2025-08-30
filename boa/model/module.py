@@ -64,10 +64,10 @@ class ChgLightningModule(LightningModule):
         print(self.model)
         
         self.ema = ExponentialMovingAverage(
-            self.parameters(), decay=self.hparams.ema.decay
+            self.parameters(), decay=self.hparams.train.ema.decay
         )        
-        self.distributed = ((self.hparams.trainer.strategy == "ddp") and 
-                            (self.hparams.trainer.devices > 1))
+        self.distributed = ((self.hparams.train.trainer.strategy == "ddp") and 
+                            (self.hparams.train.trainer.devices > 1))
         self.register_buffer("scale", torch.FloatTensor([self.hparams.metadata["target_var"]]).sqrt())
 
     def construct_orbitals(self):
@@ -204,18 +204,10 @@ class ChgLightningModule(LightningModule):
         """
         predict coefficient for GTO basis functions.
         """
-        if self.model.quadratic_readout_v2:
-            if isinstance(self.model, BOA):
-                coeffs, expo_scaling, edge_index = self.model(batch.of_batch)
-            else:
-                coeffs, expo_scaling, edge_index = self.model(batch)
+        if isinstance(self.model, BOA):
+            coeffs, expo_scaling, edge_index = self.model(batch.of_batch)
         else:
-            if isinstance(self.model, BOA):
-                coeffs = self.model(batch.of_batch)
-                expo_scaling = None
-            else:
-                coeffs, expo_scaling = self.model(batch)
-            edge_index = batch.edge_index
+            coeffs, expo_scaling, edge_index = self.model(batch)
         
         n_orbs = self.n_orbitals[
             (batch.atom_types.repeat(len(self.unique_atom_types), 1).T == 
@@ -223,13 +215,9 @@ class ChgLightningModule(LightningModule):
         batch_n_orbs = scatter(n_orbs, batch.batch, len(batch))
 
         if coeffs.dim() == 3:
-            if self.model.quadratic_readout_v2:
-                batch_n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
-                normalization = batch_n_orbs.repeat_interleave(
-                    batch_n_edge).sqrt().view(-1, 1)
-            else:
-                normalization = batch_n_orbs.repeat_interleave(
-                    batch.n_atom + batch.n_vnode).sqrt().view(-1, 1)
+            batch_n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
+            normalization = batch_n_orbs.repeat_interleave(
+                batch_n_edge).sqrt().view(-1, 1)
             inds = [0,1,2,3,4,5,6,7,9,10,11,12,13,14,15,16]
             # inds = [0,1,2,3,5,6,7,8]
             coeffs[..., inds]  = coeffs[..., inds] / normalization.unsqueeze(-1)
@@ -259,249 +247,227 @@ class ChgLightningModule(LightningModule):
         unique_atom_types = torch.unique(batch.atom_types)
         
         if coeffs.dim() == 3:
-            if self.model.quadratic_readout_v2:
-                batch_perm = torch.argsort(batch.batch[edge_index[0]])
-                edge_index = edge_index[:, batch_perm]
-                coeffs = coeffs[batch_perm]
+            batch_perm = torch.argsort(batch.batch[edge_index[0]])
+            edge_index = edge_index[:, batch_perm]
+            coeffs = coeffs[batch_perm]
 
-                coeffs_a, coeffs_b = coeffs.chunk(2, dim=-1)
+            coeffs_a, coeffs_b = coeffs.chunk(2, dim=-1)
 
-                # sort coeffs_b like coeffs_a
-                cat_index = torch.cat([edge_index, edge_index.flip(0)], dim=1)  
-                _, inverse = torch.unique(cat_index, dim=1, return_inverse=True)  # Find unique columns and inverse indices
-                perm_indices_a = inverse[:edge_index.size(1)]  # Extract indices for edge_index, Shape: M
-                perm_indices_a = perm_indices_a.to(device=edge_index.device, dtype=torch.long)  # Match device and dtype
-                perm_indices_b = inverse[edge_index.size(1):]
-                perm_indices_b = perm_indices_b.to(device=edge_index.device, dtype=torch.long)
-                inverse_perm_a = torch.empty_like(perm_indices_a)
-                inverse_perm_b = torch.empty_like(perm_indices_b)
-                inverse_perm_a[perm_indices_a] = torch.arange(len(perm_indices_a), device=edge_index.device, dtype=torch.long)
-                inverse_perm_b[perm_indices_b] = torch.arange(len(perm_indices_b), device=edge_index.device, dtype=torch.long)
-                coeffs_b = coeffs_b[inverse_perm_b][perm_indices_a]
+            # sort coeffs_b like coeffs_a
+            cat_index = torch.cat([edge_index, edge_index.flip(0)], dim=1)  
+            _, inverse = torch.unique(cat_index, dim=1, return_inverse=True)  # Find unique columns and inverse indices
+            perm_indices_a = inverse[:edge_index.size(1)]  # Extract indices for edge_index, Shape: M
+            perm_indices_a = perm_indices_a.to(device=edge_index.device, dtype=torch.long)  # Match device and dtype
+            perm_indices_b = inverse[edge_index.size(1):]
+            perm_indices_b = perm_indices_b.to(device=edge_index.device, dtype=torch.long)
+            inverse_perm_a = torch.empty_like(perm_indices_a)
+            inverse_perm_b = torch.empty_like(perm_indices_b)
+            inverse_perm_a[perm_indices_a] = torch.arange(len(perm_indices_a), device=edge_index.device, dtype=torch.long)
+            inverse_perm_b[perm_indices_b] = torch.arange(len(perm_indices_b), device=edge_index.device, dtype=torch.long)
+            coeffs_b = coeffs_b[inverse_perm_b][perm_indices_a]
 
-                coeffs = torch.cat([coeffs_a, coeffs_b], dim=-1)
+            coeffs = torch.cat([coeffs_a, coeffs_b], dim=-1)
 
-                edge_preds = []
-                # edge_preds_b = []
-                index_probes = []
-                # index_probes_b = []
-                index_edges = []
-                # index_edges_b = []
-                masks = []
-                for i in unique_atom_types:
-                    n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
-                    n_edge_i = scatter(
-                        (batch.atom_types[edge_index[0]] == i).long(),
-                        torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
-                        n_edge), len(batch)
-                    )
-                    orb_index = self.orb_index[i.item()]
-                    if expo_scaling is not None:
-                        L_index = self.L_index[i.item()]
+            edge_preds = []
+            # edge_preds_b = []
+            index_probes = []
+            # index_probes_b = []
+            index_edges = []
+            # index_edges_b = []
+            masks = []
+            for i in unique_atom_types:
+                n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
+                n_edge_i = scatter(
+                    (batch.atom_types[edge_index[0]] == i).long(),
+                    torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
+                    n_edge), len(batch)
+                )
+                orb_index = self.orb_index[i.item()]
+                if expo_scaling is not None:
+                    L_index = self.L_index[i.item()]
 
-                    
-                    edge_pred, index_probe, index_edge, mask = self.gto_dict[str(i.item())](
-                        probe_coords=probe_coords, 
-                        atom_coords=batch.coords[edge_index[0, batch.atom_types[edge_index[0]] == i]],
-                        n_probes=n_probe,
-                        n_atoms=n_edge_i,
-                        coeffs=coeffs[batch.atom_types[edge_index[0]] == i][:, orb_index],
-                        expo_scaling=None,
-                        pbc=self.pbc, cell=batch.cell, return_full=True,
-                        second_cutoff_atom_coords=batch.coords[edge_index[1, batch.atom_types[edge_index[0]] == i]],
-                    )
-                    # edge_pred_b, index_probe_b, index_edge_b, mask_b = self.gto_dict[str(i.item())](
-                    #     probe_coords=probe_coords, 
-                    #     atom_coords=batch.coords[edge_index[1, batch.atom_types[edge_index[1]] == i]],
-                    #     n_probes=n_probe,
-                    #     n_atoms=n_edge_i,
-                    #     coeffs=coeffs_b[batch.atom_types[edge_index[1]] == i][:, orb_index],
-                    #     expo_scaling=None,
-                    #     pbc=self.pbc, cell=batch.cell, return_full=True,
-                    #     second_cutoff_atom_coords=batch.coords[edge_index[0, batch.atom_types[edge_index[1]] == i]],
-                    # )
+                
+                edge_pred, index_probe, index_edge, mask = self.gto_dict[str(i.item())](
+                    probe_coords=probe_coords, 
+                    atom_coords=batch.coords[edge_index[0, batch.atom_types[edge_index[0]] == i]],
+                    n_probes=n_probe,
+                    n_atoms=n_edge_i,
+                    coeffs=coeffs[batch.atom_types[edge_index[0]] == i][:, orb_index],
+                    expo_scaling=None,
+                    pbc=self.pbc, cell=batch.cell, return_full=True,
+                    second_cutoff_atom_coords=batch.coords[edge_index[1, batch.atom_types[edge_index[0]] == i]],
+                )
+                # edge_pred_b, index_probe_b, index_edge_b, mask_b = self.gto_dict[str(i.item())](
+                #     probe_coords=probe_coords, 
+                #     atom_coords=batch.coords[edge_index[1, batch.atom_types[edge_index[1]] == i]],
+                #     n_probes=n_probe,
+                #     n_atoms=n_edge_i,
+                #     coeffs=coeffs_b[batch.atom_types[edge_index[1]] == i][:, orb_index],
+                #     expo_scaling=None,
+                #     pbc=self.pbc, cell=batch.cell, return_full=True,
+                #     second_cutoff_atom_coords=batch.coords[edge_index[0, batch.atom_types[edge_index[1]] == i]],
+                # )
 
-                    current_indices = torch.where(batch.atom_types[edge_index[0]] == i)[0]
-                    # current_indices_b = torch.where(batch.atom_types[edge_index[1]] == i)[0]
-                    global_index_edge = current_indices[index_edge]
-                    # global_index_edge_b = current_indices_b[index_edge_b]
-                    edge_preds.append(edge_pred)
-                    # edge_preds_b.append(edge_pred_b)
-                    index_edges.append(global_index_edge)
-                    # index_edges_b.append(global_index_edge_b)
-                    index_probes.append(index_probe)
-                    # index_probes_b.append(index_probe_b)
-                    # index_edges.append(torch.arange(batch.edge_index.shape[1], device=batch.edge_index.device, dtype=torch.long)[batch.atom_types[batch.edge_index[0]] == i][index_edge])
-                    # masks.append(mask)
-                edge_preds_a, edge_preds_b = torch.cat(edge_preds, dim=0).chunk(2, dim=-1)
-                # edge_preds_b = torch.cat(edge_preds_b, dim=0)
-                index_edges = torch.cat(index_edges, dim=0)
-                # index_edges_b = torch.cat(index_edges_b, dim=0)
-                index_probes = torch.cat(index_probes, dim=0)
-                # index_probes_b = torch.cat(index_probes_b, dim=0)
+                current_indices = torch.where(batch.atom_types[edge_index[0]] == i)[0]
+                # current_indices_b = torch.where(batch.atom_types[edge_index[1]] == i)[0]
+                global_index_edge = current_indices[index_edge]
+                # global_index_edge_b = current_indices_b[index_edge_b]
+                edge_preds.append(edge_pred)
+                # edge_preds_b.append(edge_pred_b)
+                index_edges.append(global_index_edge)
+                # index_edges_b.append(global_index_edge_b)
+                index_probes.append(index_probe)
+                # index_probes_b.append(index_probe_b)
+                # index_edges.append(torch.arange(batch.edge_index.shape[1], device=batch.edge_index.device, dtype=torch.long)[batch.atom_types[batch.edge_index[0]] == i][index_edge])
+                # masks.append(mask)
+            edge_preds_a, edge_preds_b = torch.cat(edge_preds, dim=0).chunk(2, dim=-1)
+            # edge_preds_b = torch.cat(edge_preds_b, dim=0)
+            index_edges = torch.cat(index_edges, dim=0)
+            # index_edges_b = torch.cat(index_edges_b, dim=0)
+            index_probes = torch.cat(index_probes, dim=0)
+            # index_probes_b = torch.cat(index_probes_b, dim=0)
 
-                # # # edge_index = batch.edge_index
-                # # # full_index_a = torch.cat([index_probes_a[None, :], edge_index[:, index_edges_a]], dim=0)
-                # # # full_index_b = torch.cat([index_probes_b[None, :], edge_index[:, index_edges_b].flip(0)], dim=0)
-                # # # # find permutation indices to reverse the edge direction
-                # # # full_index_a_dict = {tuple(edge): idx for idx, edge in enumerate(full_index_a.t().tolist())}
-                # # # perm_indices = torch.tensor([full_index_a_dict[tuple(edge)] for edge in full_index_b.t().tolist()], 
-                # # #                             device=edge_index.device, dtype=torch.long)
+            # # # edge_index = batch.edge_index
+            # # # full_index_a = torch.cat([index_probes_a[None, :], edge_index[:, index_edges_a]], dim=0)
+            # # # full_index_b = torch.cat([index_probes_b[None, :], edge_index[:, index_edges_b].flip(0)], dim=0)
+            # # # # find permutation indices to reverse the edge direction
+            # # # full_index_a_dict = {tuple(edge): idx for idx, edge in enumerate(full_index_a.t().tolist())}
+            # # # perm_indices = torch.tensor([full_index_a_dict[tuple(edge)] for edge in full_index_b.t().tolist()], 
+            # # #                             device=edge_index.device, dtype=torch.long)
 
-                # Existing tensor constructions (unchanged)
-                #edge_index = batch.edge_index
-                full_index_a = torch.cat([index_probes[None, :], edge_index[:, index_edges]], dim=0)
-                full_index_b = torch.cat([index_probes[None, :], edge_index[:, inverse_perm_a][:, perm_indices_b][:, index_edges]], dim=0)
+            # Existing tensor constructions (unchanged)
+            #edge_index = batch.edge_index
+            full_index_a = torch.cat([index_probes[None, :], edge_index[:, index_edges]], dim=0)
+            full_index_b = torch.cat([index_probes[None, :], edge_index[:, inverse_perm_a][:, perm_indices_b][:, index_edges]], dim=0)
 
-                # # print number of indices in full_index_a that are not in full_index_b
-                # j = 0
-                # for i in range(full_index_a.size(1)):
-                #     if not torch.any(torch.all(full_index_a[:, i:i+1] == full_index_b, dim=0)):
-                #         j += 1
-                #         print(f"Index {i} in full_index_a not found in full_index_b. {full_index_a[:, i:i+1]}")
-                # print("full_index_a shape:", full_index_a.shape, "full_index_b shape:", full_index_b.shape, "j:", j)
+            # # print number of indices in full_index_a that are not in full_index_b
+            # j = 0
+            # for i in range(full_index_a.size(1)):
+            #     if not torch.any(torch.all(full_index_a[:, i:i+1] == full_index_b, dim=0)):
+            #         j += 1
+            #         print(f"Index {i} in full_index_a not found in full_index_b. {full_index_a[:, i:i+1]}")
+            # print("full_index_a shape:", full_index_a.shape, "full_index_b shape:", full_index_b.shape, "j:", j)
 
-                # Optimized permutation computation
-                cat_index = torch.cat([full_index_a, full_index_b], dim=1)  # Shape: 3 × (2M)
-                _, inverse = torch.unique(cat_index, dim=1, return_inverse=True)  # Find unique columns and inverse indices
-                perm_indices_a = inverse[:full_index_a.size(1)]  # Extract indices for full_index_b, Shape: M
-                perm_indices_a = perm_indices_a.to(device=edge_index.device, dtype=torch.long)  # Match device and dtype
-                perm_indices_b = inverse[full_index_a.size(1):]
-                perm_indices_b = perm_indices_b.to(device=edge_index.device, dtype=torch.long)  
-                inverse_perm_a = torch.empty_like(perm_indices_a)
-                inverse_perm_b = torch.empty_like(perm_indices_b)
-                inverse_perm_a[perm_indices_a] = torch.arange(len(perm_indices_a), device=edge_index.device, dtype=torch.long)
-                inverse_perm_b[perm_indices_b] = torch.arange(len(perm_indices_b), device=edge_index.device, dtype=torch.long)
-                # print("unique indices shape:", _.shape)
-                # print("inverse shape:", inverse.shape)
-                # print("full_index_a:", full_index_a[:, perm_indices_b][:, :3])
-                # print("full_index_b:", full_index_b[:, perm_indices_a][:, :3])
-                # print("test a", torch.all(full_index_a == _[:, perm_indices_a]))
-                # print("test b", torch.all(full_index_b == _[:, perm_indices_b]))
-                # assert torch.all(index_probes[inverse_perm_a] == index_probes[inverse_perm_b]), \
-                #     "Index probes for atom and edge probes do not match after permutation."
-                # assert torch.all(edge_index[:, index_edges][:, inverse_perm_a] ==
-                #        edge_index[:, index_edges][:, inverse_perm_b]), \
-                #     "Edge indices for atom and edge probes do not match after permutation."
-                # index_edges = torch.cat(index_edges, dim=0)edge_pred_a
-                # masks = torch.cat(masks, dim=0)
+            # Optimized permutation computation
+            cat_index = torch.cat([full_index_a, full_index_b], dim=1)  # Shape: 3 × (2M)
+            _, inverse = torch.unique(cat_index, dim=1, return_inverse=True)  # Find unique columns and inverse indices
+            perm_indices_a = inverse[:full_index_a.size(1)]  # Extract indices for full_index_b, Shape: M
+            perm_indices_a = perm_indices_a.to(device=edge_index.device, dtype=torch.long)  # Match device and dtype
+            perm_indices_b = inverse[full_index_a.size(1):]
+            perm_indices_b = perm_indices_b.to(device=edge_index.device, dtype=torch.long)  
+            inverse_perm_a = torch.empty_like(perm_indices_a)
+            inverse_perm_b = torch.empty_like(perm_indices_b)
+            inverse_perm_a[perm_indices_a] = torch.arange(len(perm_indices_a), device=edge_index.device, dtype=torch.long)
+            inverse_perm_b[perm_indices_b] = torch.arange(len(perm_indices_b), device=edge_index.device, dtype=torch.long)
+            # print("unique indices shape:", _.shape)
+            # print("inverse shape:", inverse.shape)
+            # print("full_index_a:", full_index_a[:, perm_indices_b][:, :3])
+            # print("full_index_b:", full_index_b[:, perm_indices_a][:, :3])
+            # print("test a", torch.all(full_index_a == _[:, perm_indices_a]))
+            # print("test b", torch.all(full_index_b == _[:, perm_indices_b]))
+            # assert torch.all(index_probes[inverse_perm_a] == index_probes[inverse_perm_b]), \
+            #     "Index probes for atom and edge probes do not match after permutation."
+            # assert torch.all(edge_index[:, index_edges][:, inverse_perm_a] ==
+            #        edge_index[:, index_edges][:, inverse_perm_b]), \
+            #     "Edge indices for atom and edge probes do not match after permutation."
+            # index_edges = torch.cat(index_edges, dim=0)edge_pred_a
+            # masks = torch.cat(masks, dim=0)
 
-                # # n_edge = scatter(torch.ones_like(batch.edge_index[0]), batch.batch[batch.edge_index[0]], dim_size=len(batch))
-                # # device = probe_coords.device
-                # # n_pairs = n_probe * n_edge
-                # # n_total_pairs = n_pairs.sum()
+            # # n_edge = scatter(torch.ones_like(batch.edge_index[0]), batch.batch[batch.edge_index[0]], dim_size=len(batch))
+            # # device = probe_coords.device
+            # # n_pairs = n_probe * n_edge
+            # # n_total_pairs = n_pairs.sum()
 
-                # # index_offset_p = torch.cumsum(n_probe, dim=0) - n_probe
-                # # index_offset_p = torch.repeat_interleave(index_offset_p, n_pairs)
-                # # index_offset_a = torch.cumsum(n_edge, dim=0) - n_edge
-                # # index_offset_a = torch.repeat_interleave(index_offset_a, n_pairs)
-                # # index_offset_pair = torch.cumsum(n_pairs, dim=0) - n_pairs
-                # # index_offset_pair = torch.repeat_interleave(index_offset_pair, n_pairs)
-                # # pair_count = torch.arange(n_total_pairs, device=device) - index_offset_pair
-                # # n_edge_expand = torch.repeat_interleave(n_edge, n_pairs)
+            # # index_offset_p = torch.cumsum(n_probe, dim=0) - n_probe
+            # # index_offset_p = torch.repeat_interleave(index_offset_p, n_pairs)
+            # # index_offset_a = torch.cumsum(n_edge, dim=0) - n_edge
+            # # index_offset_a = torch.repeat_interleave(index_offset_a, n_pairs)
+            # # index_offset_pair = torch.cumsum(n_pairs, dim=0) - n_pairs
+            # # index_offset_pair = torch.repeat_interleave(index_offset_pair, n_pairs)
+            # # pair_count = torch.arange(n_total_pairs, device=device) - index_offset_pair
+            # # n_edge_expand = torch.repeat_interleave(n_edge, n_pairs)
 
-                # # index_probe = torch.div(pair_count, n_edge_expand, rounding_mode='trunc').long() + index_offset_p
-                # # index_atom = (pair_count % n_edge_expand).long() + index_offset_a
+            # # index_probe = torch.div(pair_count, n_edge_expand, rounding_mode='trunc').long() + index_offset_p
+            # # index_atom = (pair_count % n_edge_expand).long() + index_offset_a
 
-                # # # alternative way of building index_atom
+            # # # alternative way of building index_atom
 
 
-                # # edge_index = batch.edge_index
-                # # full_index = torch.cat([index_probes[None, :], edge_index[:, index_edges]], dim=0)
-                # # full_index_reverse = torch.cat([index_probes[None, :], edge_index[:, index_edges].flip(0)], dim=0)
-                # # # find permutation indices to reverse the edge direction
-                # # full_index_dict = {tuple(edge): idx for idx, edge in enumerate(full_index.t().tolist())}
-                # # perm_indices = torch.tensor([full_index_dict[tuple(edge)] for edge in full_index_reverse.t().tolist()], 
-                # #                             device=edge_index.device, dtype=torch.long)
+            # # edge_index = batch.edge_index
+            # # full_index = torch.cat([index_probes[None, :], edge_index[:, index_edges]], dim=0)
+            # # full_index_reverse = torch.cat([index_probes[None, :], edge_index[:, index_edges].flip(0)], dim=0)
+            # # # find permutation indices to reverse the edge direction
+            # # full_index_dict = {tuple(edge): idx for idx, edge in enumerate(full_index.t().tolist())}
+            # # perm_indices = torch.tensor([full_index_dict[tuple(edge)] for edge in full_index_reverse.t().tolist()], 
+            # #                             device=edge_index.device, dtype=torch.long)
 
-                # edge_index = batch.edge_index
-                # e = edge_index.size(1)
-                # edge_list = edge_index.t().tolist()
-                # edge_dict = {tuple(edge): idx for idx, edge in enumerate(edge_list)}
-                # perm_indices = [edge_dict[(edge_index[1, i].item(), edge_index[0, i].item())] 
-                #                 for i in range(e)]
-                # perm = torch.tensor(perm_indices, device=edge_index.device, dtype=torch.long)
-                # perm = perm[index_edges]
+            # edge_index = batch.edge_index
+            # e = edge_index.size(1)
+            # edge_list = edge_index.t().tolist()
+            # edge_dict = {tuple(edge): idx for idx, edge in enumerate(edge_list)}
+            # perm_indices = [edge_dict[(edge_index[1, i].item(), edge_index[0, i].item())] 
+            #                 for i in range(e)]
+            # perm = torch.tensor(perm_indices, device=edge_index.device, dtype=torch.long)
+            # perm = perm[index_edges]
 
-                # # print shapes
-                # print("edge_preds shape:", edge_preds.shape)
-                # print("index_probes shape:", index_probes.shape)
-                # print("index_edges shape:", index_edges.shape)
-                # print("edge_index shape:", batch.edge_index.shape)
-                # print("masks shape:", masks.shape)
+            # # print shapes
+            # print("edge_preds shape:", edge_preds.shape)
+            # print("index_probes shape:", index_probes.shape)
+            # print("index_edges shape:", index_edges.shape)
+            # print("edge_index shape:", batch.edge_index.shape)
+            # print("masks shape:", masks.shape)
 
-                # edge_preds_a = torch.abs(edge_preds_a)
-                # use a smooth L1loss instead of abs
-                # edge_preds_a = torch.nn.functional.smooth_l1_loss(edge_preds_a*1e3, torch.zeros_like(edge_preds_a), reduction='none')/1e3
+            # edge_preds_a = torch.abs(edge_preds_a)
+            # use a smooth L1loss instead of abs
+            # edge_preds_a = torch.nn.functional.smooth_l1_loss(edge_preds_a*1e3, torch.zeros_like(edge_preds_a), reduction='none')/1e3
 
-                # pred = (edge_preds*edge_preds[perm]).sum(dim=-1)
-                pred = scatter(((edge_preds_a[inverse_perm_a])*(edge_preds_b[inverse_perm_b])).sum(dim=-1), index_probes[inverse_perm_a], n_probe.sum())
-                # Detect nans
-                if torch.isnan(pred).any():
-                    print("NaN detected in prediction.")
-                    print("Number of NaNs:", torch.isnan(pred).sum().item())
-                    print("Nan probe coordinates:", probe_coords[torch.isnan(pred)])
-                    print("Number of nan edge features:", torch.isnan(edge_preds_a).sum().item())
-                    print("Number of nan edge features b:", torch.isnan(edge_preds_b).sum().item())
-                    print("Number of nan coeffs:", torch.isnan(coeffs).sum().item())
-                # edge_pred = torch.zeros(probe_coords.shape[0], batch.edge_index.shape[1], coeffs.shape[-1], device=coeffs.device, dtype=coeffs.dtype)
-                # for i in unique_atom_types:
-                #     n_atom_i = scatter(
-                #         (batch.atom_types == i).long(), 
-                #         torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
-                #         batch.n_atom + batch.n_vnode), len(batch)
-                #     )
-                #     orb_index = self.orb_index[i.item()]
-                #     if expo_scaling is not None:
-                #         L_index = self.L_index[i.item()]
-                #     gtos, index_atom, index_probe = self.gto_dict[str(i.item())](
-                #         probe_coords=probe_coords, 
-                #         atom_coords=batch.coords[batch.atom_types == i], 
-                #         n_probes=n_probe,
-                #         n_atoms=n_atom_i,
-                #         #coeffs=coeffs[batch.atom_types[batch.edge_index[0]] == i][:, orb_index],
-                #         expo_scaling=expo_scaling[batch.atom_types == i][:, L_index] if expo_scaling is not None else None,
-                #         pbc=self.pbc, cell=batch.cell
-                #     )
-                #     print("gtos shape:", gtos.shape)
-                #     vals = (gtos.unsqueeze(-1) * coeffs[batch.atom_types[batch.edge_index[0]] == i][:, orb_index][index_atom]).sum(dim=1)
-                #     print("vals shape:", vals.shape)
-                #     edge_pred[:, batch.atom_types[batch.edge_index[0]] == i, :] = scatter(
-                #                                                     vals, 
-                #                                                     index_probe, n_probe.sum()
-                #                                                 )
-                #     #edge_pred[:, batch.atom_types[batch.edge_index[0]] == i, :] = torch.einsum('pg, egc -> pec', gtos, coeffs[batch.atom_types[batch.edge_index[0]] == i][:, orb_index])
-                # edge_index = batch.edge_index
-                # e = edge_index.size(1)
-                # edge_list = edge_index.t().tolist()
-                # edge_dict = {tuple(edge): idx for idx, edge in enumerate(edge_list)}
-                # perm_indices = [edge_dict[(edge_index[1, i].item(), edge_index[0, i].item())] 
-                #                 for i in range(e)]
-                # perm = torch.tensor(perm_indices)
-                # pred = torch.einsum('pec, pec -> pc', edge_pred, edge_pred[:, perm, :]).sum(dim=-1)
-                # #pred = scatter((edge_pred * edge_pred[:, perm, :]).permute(1, 0, 2), batch.batch[edge_index[0]], dim_size=len(batch)).sum(dim=-1)
-                # print("pred shape:", pred.shape)
-            else:
-                pred = torch.zeros(probe_coords.shape[0], coeffs.shape[-1], device=coeffs.device, dtype=coeffs.dtype)
-                for i in unique_atom_types:
-                    n_atom_i = scatter(
-                        (batch.atom_types == i).long(), 
-                        torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
-                        batch.n_atom + batch.n_vnode), len(batch)
-                    )
-                    orb_index = self.orb_index[i.item()]
-                    if expo_scaling is not None:
-                        L_index = self.L_index[i.item()]
-                    pred += self.gto_dict[str(i.item())](
-                        probe_coords=probe_coords, 
-                        atom_coords=batch.coords[batch.atom_types == i], 
-                        n_probes=n_probe,
-                        n_atoms=n_atom_i,
-                        coeffs=coeffs[batch.atom_types == i][:, orb_index],
-                        expo_scaling=expo_scaling[batch.atom_types == i][:, L_index] if expo_scaling is not None else None,
-                        pbc=self.pbc, cell=batch.cell
-                    )
-                pred = (pred**2).sum(dim=-1)
+            # pred = (edge_preds*edge_preds[perm]).sum(dim=-1)
+            pred = scatter(((edge_preds_a[inverse_perm_a])*(edge_preds_b[inverse_perm_b])).sum(dim=-1), index_probes[inverse_perm_a], n_probe.sum())
+            # Detect nans
+            if torch.isnan(pred).any():
+                print("NaN detected in prediction.")
+                print("Number of NaNs:", torch.isnan(pred).sum().item())
+                print("Nan probe coordinates:", probe_coords[torch.isnan(pred)])
+                print("Number of nan edge features:", torch.isnan(edge_preds_a).sum().item())
+                print("Number of nan edge features b:", torch.isnan(edge_preds_b).sum().item())
+                print("Number of nan coeffs:", torch.isnan(coeffs).sum().item())
+            # edge_pred = torch.zeros(probe_coords.shape[0], batch.edge_index.shape[1], coeffs.shape[-1], device=coeffs.device, dtype=coeffs.dtype)
+            # for i in unique_atom_types:
+            #     n_atom_i = scatter(
+            #         (batch.atom_types == i).long(), 
+            #         torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
+            #         batch.n_atom + batch.n_vnode), len(batch)
+            #     )
+            #     orb_index = self.orb_index[i.item()]
+            #     if expo_scaling is not None:
+            #         L_index = self.L_index[i.item()]
+            #     gtos, index_atom, index_probe = self.gto_dict[str(i.item())](
+            #         probe_coords=probe_coords, 
+            #         atom_coords=batch.coords[batch.atom_types == i], 
+            #         n_probes=n_probe,
+            #         n_atoms=n_atom_i,
+            #         #coeffs=coeffs[batch.atom_types[batch.edge_index[0]] == i][:, orb_index],
+            #         expo_scaling=expo_scaling[batch.atom_types == i][:, L_index] if expo_scaling is not None else None,
+            #         pbc=self.pbc, cell=batch.cell
+            #     )
+            #     print("gtos shape:", gtos.shape)
+            #     vals = (gtos.unsqueeze(-1) * coeffs[batch.atom_types[batch.edge_index[0]] == i][:, orb_index][index_atom]).sum(dim=1)
+            #     print("vals shape:", vals.shape)
+            #     edge_pred[:, batch.atom_types[batch.edge_index[0]] == i, :] = scatter(
+            #                                                     vals, 
+            #                                                     index_probe, n_probe.sum()
+            #                                                 )
+            #     #edge_pred[:, batch.atom_types[batch.edge_index[0]] == i, :] = torch.einsum('pg, egc -> pec', gtos, coeffs[batch.atom_types[batch.edge_index[0]] == i][:, orb_index])
+            # edge_index = batch.edge_index
+            # e = edge_index.size(1)
+            # edge_list = edge_index.t().tolist()
+            # edge_dict = {tuple(edge): idx for idx, edge in enumerate(edge_list)}
+            # perm_indices = [edge_dict[(edge_index[1, i].item(), edge_index[0, i].item())] 
+            #                 for i in range(e)]
+            # perm = torch.tensor(perm_indices)
+            # pred = torch.einsum('pec, pec -> pc', edge_pred, edge_pred[:, perm, :]).sum(dim=-1)
+            # #pred = scatter((edge_pred * edge_pred[:, perm, :]).permute(1, 0, 2), batch.batch[edge_index[0]], dim_size=len(batch)).sum(dim=-1)
+            # print("pred shape:", pred.shape)
         else:        
             pred = torch.zeros(probe_coords.shape[0], device=coeffs.device, dtype=coeffs.dtype) 
             for i in unique_atom_types:
@@ -625,21 +591,21 @@ class ChgLightningModule(LightningModule):
 
     def configure_optimizers(self):
         opt = instantiate(
-            self.hparams.optim,
+            self.hparams.train.optim,
             params=self.parameters(),
             _convert_="partial",
         )
-        scheduler = instantiate(self.hparams.lr_scheduler, optimizer=opt)
-        
-        if 'lr_schedule_freq' in self.hparams:
+        scheduler = instantiate(self.hparams.train.lr_scheduler, optimizer=opt)
+
+        if 'lr_schedule_freq' in self.hparams.train:
             scheduler = {
                 'scheduler': scheduler,
                 'interval': 'step',
-                'frequency': self.hparams.lr_schedule_freq,
-                'monitor': self.hparams.monitor.metric
+                'frequency': self.hparams.train.lr_schedule_freq,
+                'monitor': self.hparams.train.monitor.metric
             }
             
-        return {"optimizer": opt, "lr_scheduler": scheduler, 'monitor': self.hparams.monitor.metric}
+        return {"optimizer": opt, "lr_scheduler": scheduler, 'monitor': self.hparams.train.monitor.metric}
     
     def on_fit_start(self):
         self.ema.to(self.device)
