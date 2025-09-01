@@ -9,7 +9,7 @@ import omegaconf
 import rootutils
 import torch
 from lightning.pytorch import Callback
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, open_dict
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 from lightning.pytorch import seed_everything
@@ -150,7 +150,31 @@ def run(cfg: DictConfig) -> str:
     if cfg.model.expo_trainable:
         model.load_state_dict(torch.load(ckpt)["state_dict"], strict=False)
         ckpt = None
-            
+
+    if cfg.initial_guess_pre_training_steps > 0:
+        pre_cfg = cfg.copy()
+        with open_dict(pre_cfg.model):
+            pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
+            pre_cfg.optim.lr = 1e-2
+            pre_cfg.lr_scheduler.T_max = cfg.initial_guess_pre_training_steps
+            pre_cfg.trainer.max_steps = cfg.initial_guess_pre_training_steps
+            pre_cfg.model.use_radial_correction = False
+
+        pre_model = hydra.utils.instantiate(
+            pre_cfg.model, train=pre_cfg, _recursive_=False, metadata=metadata,
+        )
+
+        pre_trainer = pl.Trainer(
+            logger=logger,
+            **pre_cfg.trainer,
+        )
+
+        pre_trainer.fit(
+            pre_model, datamodule.train_dataloader(), datamodule.val_dataloader()
+        )
+
+        model.model.initial_guess_module.load_state_dict(pre_model.model.state_dict())
+
     pylogger.info("starting training.")
     trainer.fit(
         model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=ckpt

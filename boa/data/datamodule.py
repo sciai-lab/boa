@@ -62,8 +62,8 @@ class DataModule(pl.LightningDataModule):
         self.train_dataset = Subset(self.dataset, self.splits["train"])
         self.val_dataset = Subset(self.dataset, self.splits["validation"])
         self.test_dataset = Subset(self.dataset, self.splits["test"])
-        if (Path(self.dataset.path) / 'metadata.json').exists():
-            with open(self.dataset.path / 'metadata.json', 'r') as fp:
+        if (Path(self.dataset.path) / 'metadata_full.json').exists():
+            with open(self.dataset.path / 'metadata_full.json', 'r') as fp:
                 self.metadata = json.load(fp)
         else:
             self.metadata = self.get_metadata()
@@ -91,7 +91,7 @@ class DataModule(pl.LightningDataModule):
             'avg_num_neighbors': avg_num_neighbors,
             'unique_atom_types': list(unique_atom_types)
         }
-        with open(self.dataset.path / 'metadata.json', 'w') as fp:
+        with open(self.dataset.path / 'metadata_full.json', 'w') as fp:
             json.dump(metadata, fp)
         return metadata
 

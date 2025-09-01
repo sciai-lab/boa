@@ -21,6 +21,8 @@ name: debug
 
 task_name: train
 
+initial_guess_pre_training_steps: 1000
+
 conventions:
   x_key: 'x'
   y_key: 'y'

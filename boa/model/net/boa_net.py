@@ -75,12 +75,15 @@ class ReducedEdgeEmbedding(nn.Module):
             basis_info, channels=channels
         )
 
-    def forward(self, edge_index: Tensor, atomic_numbers: Tensor, coeff_ind_to_node_ind: Tensor) -> Tensor:
+    def forward(self, batch) -> Tensor:
         """
-        :param edge_index: Tensor of shape (2, n_edges)
-        :param atomic_numbers: Tensor of shape (batch_size, n_atoms)
+        :param batch
         :return: Tensor of shape (n_edges, n_channels)
         """
+
+        edge_index = batch.edge_index
+        atomic_numbers = batch.atomic_numbers
+        coeff_ind_to_node_ind = batch.coeff_ind_to_node_ind
 
         node_features_a = self.node_embedding_a(
             atomic_numbers, coeff_ind_to_node_ind
@@ -106,7 +109,7 @@ class ReducedEdgeEmbedding(nn.Module):
         edge_features_a[edge_index[0] == edge_index[1]] = node_features_a
         edge_features_b[edge_index[0] == edge_index[1]] = node_features_b
 
-        return edge_features_a, edge_features_b
+        return torch.cat([edge_features_a, edge_features_b], dim=-1), None, edge_index
 
 
 class BOA(nn.Module):
@@ -114,6 +117,7 @@ class BOA(nn.Module):
         self,
         basis_info: BasisInfo,
         boa_stack: BoaBlockStack,
+        initial_guess_module: ReducedEdgeEmbedding,
         direct_gs_prediction: bool = False,
         num_orbitals: int = 0,
     ) -> None:
@@ -132,21 +136,17 @@ class BOA(nn.Module):
             basis_info, channels=self.num_channels
         )
 
-        self.initial_guess_module = ReducedEdgeEmbedding(
-            basis_info, channels=1
-        )
-
-        self.initial_guess_module.load_state_dict(torch.load("/export/home/mklockow/scdp/data/edge_embedding_abs_1e3_reduced_noadded.pth", map_location="cpu"))
-
+        self.initial_guess_module = initial_guess_module
+        # self.initial_guess_module.load_state_dict(torch.load("/export/home/mklockow/scdp/data/edge_embedding_abs_1e3_reduced_noadded.pth", map_location="cpu"))
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         if self.node_embedding is not None:
             x = self.node_embedding(batch.atomic_numbers, batch.coeff_ind_to_node_ind)
 
-        init_edge_features_a, init_edge_features_b = self.initial_guess_module(batch.edge_index, batch.atomic_numbers, batch.coeff_ind_to_node_ind)
-        edge_features_a, edge_features_b = self.edge_embedding(
-            batch.edge_index, batch.atomic_numbers, batch.coeff_ind_to_node_ind
-        )
+        init_edge_features = self.initial_guess_module(batch)[0]
+        init_edge_features_a, init_edge_features_b = init_edge_features[..., 0][..., None], init_edge_features[..., 1][..., None]
+        edge_features = self.edge_embedding(batch)[0]
+        edge_features_a, edge_features_b = edge_features[..., :self.num_channels], edge_features[..., self.num_channels:]
         init_edge_features_a = init_edge_features_a + 1e-3*edge_features_a
         init_edge_features_b = init_edge_features_b + 1e-3*edge_features_b
 
@@ -156,7 +156,7 @@ class BOA(nn.Module):
             batch.atomic_numbers,
             batch.edge_index,
             batch.message_edge_index,
-            edge_features_a=edge_features_a,
+            edge_features_a=edge_features_a, #FIXME wrong input features
             edge_features_b=edge_features_b,
             edge_matrices=batch.edge_matrices,
             message_edge_matrices=batch.message_edge_matrices,
@@ -166,7 +166,8 @@ class BOA(nn.Module):
         edge_features_a = edge_features_a.view(edge_features_a.shape[0], edge_features_a.shape[1], -1, self.num_orbitals).mean(-2)
         edge_features_b = edge_features_b.view(edge_features_b.shape[0], edge_features_b.shape[1], -1, self.num_orbitals).mean(-2)
 
-        init_guess_edge_a, init_guess_edge_b = self.initial_guess_module(batch.edge_index, batch.atomic_numbers, batch.coeff_ind_to_node_ind)
+        init_guess_edge = self.initial_guess_module(batch)[0]
+        init_guess_edge_a, init_guess_edge_b = init_guess_edge[..., 0][..., None], init_guess_edge[..., 1][..., None]
         init_guess_delta = torch.cat([edge_features_a, init_guess_edge_a, edge_features_b, init_guess_edge_b], dim=-1)
 
         return init_guess_delta, None, full_edge_index

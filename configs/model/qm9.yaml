@@ -14,6 +14,8 @@ orb_cutoff: 3.0
 expo_trainable: false
 magnitude_weighting: false
 use_radial_correction: true
+abs_scale: 1e3
+scale_factor: 1e-2
 
 basis_info: 
   _target_: boa.data.basis_info.BasisInfo.from_atomic_numbers_with_even_tempered_basis

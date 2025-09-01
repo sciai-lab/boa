@@ -43,6 +43,7 @@ class ChgLightningModule(LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.basis_info = instantiate(self.hparams.basis_info)
+        self.abs_scale = self.hparams.abs_scale
         self.construct_orbitals()
         num_neighbors = self.hparams.metadata["avg_num_neighbors"]
         self.model = instantiate(
@@ -55,7 +56,7 @@ class ChgLightningModule(LightningModule):
         )        
         self.distributed = ((self.hparams.train.trainer.strategy == "ddp") and 
                             (self.hparams.train.trainer.devices > 1))
-        self.register_buffer("scale", torch.FloatTensor([self.hparams.metadata["target_var"]]).sqrt())
+        self.register_buffer("scale", torch.FloatTensor([self.hparams.metadata["target_var"]]).sqrt() * self.hparams.scale_factor)
 
     def construct_orbitals(self):
         # construct GTOs
@@ -124,10 +125,7 @@ class ChgLightningModule(LightningModule):
         """
         predict coefficient for GTO basis functions.
         """
-        if isinstance(self.model, BOA):
-            coeffs, expo_scaling, edge_index = self.model(batch.of_batch)
-        else:
-            coeffs, expo_scaling, edge_index = self.model(batch)
+        coeffs, expo_scaling, edge_index = self.model(batch.of_batch)
         
         n_orbs = self.n_orbitals[
             (batch.atom_types.repeat(len(self.unique_atom_types), 1).T == 
@@ -138,10 +136,10 @@ class ChgLightningModule(LightningModule):
             batch_n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
             normalization = batch_n_orbs.repeat_interleave(
                 batch_n_edge).sqrt().view(-1, 1)
-            inds = [0,1,2,3,4,5,6,7,9,10,11,12,13,14,15,16]
-            # inds = [0,1,2,3,5,6,7,8]
-            coeffs[..., inds]  = coeffs[..., inds] / normalization.unsqueeze(-1)
-            # coeffs = coeffs / normalization.unsqueeze(-1)
+            # inds = [0,1,2,3,4,5,6,7,9,10,11,12,13,14,15,16]
+            # # inds = [0,1,2,3,5,6,7,8]
+            # coeffs[..., inds]  = coeffs[..., inds] / normalization.unsqueeze(-1)
+            #coeffs = coeffs / normalization.unsqueeze(-1)
         else:
             normalization = batch_n_orbs.repeat_interleave(
                 batch.n_atom + batch.n_vnode).sqrt().view(-1, 1)
@@ -236,7 +234,7 @@ class ChgLightningModule(LightningModule):
         inverse_perm_b[perm_indices_b] = torch.arange(len(perm_indices_b), device=edge_index.device, dtype=torch.long)
 
         # use a smooth L1loss instead of abs
-        edge_preds_a = torch.nn.functional.smooth_l1_loss(edge_preds_a*1e3, torch.zeros_like(edge_preds_a), reduction='none')/1e3
+        edge_preds_a = torch.nn.functional.smooth_l1_loss(edge_preds_a*self.abs_scale, torch.zeros_like(edge_preds_a), reduction='none')/self.abs_scale
 
         # pred = (edge_preds*edge_preds[perm]).sum(dim=-1)
         pred = scatter(((edge_preds_a[inverse_perm_a])*(edge_preds_b[inverse_perm_b])).sum(dim=-1), index_probes[inverse_perm_a], n_probe.sum())
@@ -259,14 +257,26 @@ class ChgLightningModule(LightningModule):
         return loss, pred, batch.chg_labels, coeffs, expo_scaling
     
     def training_step(self, batch, batch_idx):
-        loss, _, _, coeffs, scaling = self(batch)
+        loss, pred, target, coeffs, scaling = self(batch)
         self.log_dict({
             "loss/train": loss,
             }, 
             batch_size=batch["cell"].shape[0], 
             sync_dist=self.distributed
-        )   
-        
+        )  
+
+        if batch_idx % 10 == 0:
+            nmape = get_nmape(
+                pred, target, 
+                torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe)
+            ).mean()
+            self.log_dict({
+                "nmape/train": nmape
+            }, 
+            batch_size=batch["cell"].shape[0], 
+            sync_dist=self.distributed
+            )
+
         if scaling is not None:
             self.log_dict({
                 "trainer/scaling_mean": scaling.mean(),

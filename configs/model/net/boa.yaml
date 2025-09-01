@@ -13,3 +13,8 @@ boa_stack:
 
 num_orbitals: 8
 direct_gs_prediction: True
+
+initial_guess_module:
+  _target_: boa.model.net.boa_net.ReducedEdgeEmbedding
+  basis_info: ${model.basis_info}
+  channels: 1

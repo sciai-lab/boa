@@ -651,5 +651,3 @@ class BoaBlock(nn.Module):
         if torch.isnan(edge_features_a).any() or torch.isnan(edge_features_b).any():
             raise ValueError("NaN detected in edge features after edge update")
         return atom_repr, edge_features_a, edge_features_b
-
-        return atom_repr, None, None
