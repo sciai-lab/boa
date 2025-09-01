@@ -75,16 +75,12 @@ class DataModule(pl.LightningDataModule):
         avg_num_neighbors = 0
         print('get metadata.')
         progress = tqdm(total=len(self.train_dataset))
-        i = 0
         for data in self.train_dataset:
             x_sum += data.chg_labels.mean()
             x_2 += (data.chg_labels ** 2).mean()
             unique_atom_types.update(data.atom_types.numpy().tolist())
             avg_num_neighbors += data.edge_index.shape[1] / len(data.atom_types) / 2
             progress.update(1)
-            i += 1
-            if i > 1000:
-                break
         x_mean = x_sum / len(self.train_dataset)
         x_var = x_2 / len(self.train_dataset) - x_mean ** 2
         avg_num_neighbors = int(avg_num_neighbors / len(self.train_dataset))

@@ -13,10 +13,10 @@ num_workers:
   val: 8
   test: 8
 batch_size: 
-  train: 1
-  val: 1
-  test: 1
+  train: 12
+  val: 12
+  test: 12
 n_probe:
-  train: 40000 #100000
-  val: 80000 #200000
-  test: 80000 #200000
+  train: 5000 
+  val: 6500
+  test: 6500

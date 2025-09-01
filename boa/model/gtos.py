@@ -79,6 +79,7 @@ class GTOs(nn.Module):
                  contraction : Optional[torch.Tensor] = None,
                  normalize: bool = True,
                  cutoff: Optional[float] = None,
+                 use_radial_correction: bool = True
                 ):
         super(GTOs, self).__init__()
         assert len(Ls) == len(coeffs) == len(expos), "<len(Ls)> must equal <len(coeffs)> and <len(expos)>."
@@ -96,7 +97,9 @@ class GTOs(nn.Module):
         self.register_buffer('rad_idx', torch.repeat_interleave(torch.arange(len(Ls)), 2 * Ls + 1))
         self.register_buffer('sph_idx', torch.cat([torch.arange(i**2, i**2 + 2*i+1) for i in Ls]))
 
-        self.radial_correction = RadialCorrection(expos.shape[0])
+        self.use_radial_correction = use_radial_correction
+        if self.use_radial_correction:
+            self.radial_correction = RadialCorrection(expos.shape[0])
         
         # assumes Ls are sorted
         self.n_orbitals_per_L = scatter(torch.ones_like(self.Ls), self.Ls, MAX_L+1)
@@ -157,7 +160,8 @@ class GTOs(nn.Module):
         else:
             radial = self.coeffs * torch.exp(log)
 
-        radial = radial * (1 + self.radial_correction(r)) 
+        if self.use_radial_correction:
+            radial = radial * (1 + self.radial_correction(r)) 
 
         uncontracted = radial[:, self.rad_idx] * spherical[:, self.sph_idx]
         # Explicitly expand uncontracted to full size

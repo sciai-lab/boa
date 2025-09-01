@@ -13,6 +13,7 @@ uncontracted: false
 orb_cutoff: 3.0
 expo_trainable: false
 magnitude_weighting: false
+use_radial_correction: true
 
 basis_info: 
   _target_: boa.data.basis_info.BasisInfo.from_atomic_numbers_with_even_tempered_basis
@@ -29,4 +30,4 @@ basis_info:
   #   F: [[5, [1.5, 1.0]]]
 
 defaults:
-  - net: neural_operator_nostats
+  - net: boa

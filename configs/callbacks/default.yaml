@@ -40,4 +40,4 @@
   log_momentum: False
 
 - _target_: lightning.pytorch.callbacks.progress.tqdm_progress.TQDMProgressBar
-  refresh_rate: 20
+  refresh_rate: 1

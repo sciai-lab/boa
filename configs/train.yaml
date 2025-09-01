@@ -1,5 +1,5 @@
 defaults:
-  - data: qm9
+  - data: qm9_small
   - model: qm9
   - paths: default
   - hydra: default
