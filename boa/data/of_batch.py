@@ -6,18 +6,13 @@ from collections.abc import Mapping, Sequence
 from typing import (
     Any,
     Dict,
-    Iterable,
     List,
     Optional,
-    Self,
-    Tuple,
-    Type,
     TypeVar,
     Union,
 )
 
 import torch
-import torch.utils.data
 from torch import Tensor
 from torch.utils.data.dataloader import default_collate
 from torch_geometric.data import Batch, Dataset
@@ -28,10 +23,11 @@ from torch_geometric.data.storage import NodeStorage
 from torch_geometric.typing import TensorFrame, torch_frame
 from torch_geometric.utils import cumsum
 
+from boa.data.overlap_matrix import OverlapMatrix
+
 T = TypeVar("T")
 SliceDictType = Dict[str, Union[Tensor, Dict[str, Tensor]]]
 IncDictType = Dict[str, Union[Tensor, Dict[str, Tensor]]]
-
 
 class OFCollater:
     """Collater for OF-DFT data.
@@ -99,7 +95,7 @@ class OFBatch(Batch):
         follow_batch: Optional[List[str]] = None,
         exclude_keys: Optional[List[str]] = None,
         list_keys: Optional[Sequence[str]] = None,  # Added to the original implementation
-    ) -> Self:
+    ):
         r"""Constructs a :class:`~torch_geometric.data.Batch` object from a list of
         :class:`~torch_geometric.data.Data` or :class:`~torch_geometric.data.HeteroData` objects.
 
@@ -128,14 +124,14 @@ class OFBatch(Batch):
 
 
 def collate(
-    cls: Type[T],
-    data_list: List[BaseData],
+    cls,
+    data_list,
     increment: bool = True,
     add_batch: bool = True,
-    follow_batch: Optional[Iterable[str]] = None,
-    exclude_keys: Optional[Iterable[str]] = None,
-    list_keys: Optional[Sequence[str]] = None,  # Added to the original implementation
-) -> Tuple[T, SliceDictType, IncDictType]:
+    follow_batch = None,
+    exclude_keys = None,
+    list_keys = None,  # Added to the original implementation
+):
     """Collates a list of `data` objects into a single object of type `cls`.
 
     `collate` can handle both homogeneous and heterogeneous data objects by
@@ -179,8 +175,8 @@ def collate(
     #   elements as attributes that got incremented need to be decremented
     #   while separating to obtain original values.
     device: Optional[torch.device] = None
-    slice_dict: SliceDictType = {}
-    inc_dict: IncDictType = {}
+    slice_dict = {}
+    inc_dict = {}
     for out_store in out.stores:  # type: ignore
         key = out_store._key
         stores = key_to_stores[key]
@@ -194,7 +190,17 @@ def collate(
             # This is the only change from the original implementation:
             if attr in list_keys:
                 out_store[attr] = values
-                if isinstance(values[0], Tensor):
+                if isinstance(values[0], torch.Tensor):
+                    if device is None:
+                        device = values[0].device
+                slice_dict[attr] = torch.arange(len(values) + 1, device=device)
+                inc_dict[attr] = torch.zeros(len(values), device=device)
+                continue
+            elif isinstance(values[0], (OverlapMatrix)):
+                values = values[0].zero_pad_matrices(values)
+                values = torch.stack(values, dim=0)
+                out_store[attr] = values
+                if isinstance(values[0], torch.Tensor):
                     if device is None:
                         device = values[0].device
                 slice_dict[attr] = torch.arange(len(values) + 1, device=device)
@@ -218,7 +224,7 @@ def collate(
 
             # If parts of the data are already on GPU, make sure that auxiliary
             # data like `batch` or `ptr` are also created on GPU:
-            if isinstance(value, Tensor) and value.is_cuda:
+            if isinstance(value, torch.Tensor) and value.is_cuda:
                 device = value.device
 
             out_store[attr] = value

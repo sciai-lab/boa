@@ -15,26 +15,6 @@ from boa.model.gtos import MAX_L
 
 element_symbols_to_numbers = pyscf.data.elements.ELEMENTS_PROTON
 
-
-def move_batch_to_dtype(batch, dtype):
-    """
-    Move all tensors in the batch to the specified dtype, except for long and bool tensors.
-    """
-    for k in batch.keys:
-        v = batch[k]
-        if hasattr(v, "dtype") and v.dtype != torch.long and v.dtype != torch.bool:
-            batch[k] = v.to(dtype)
-    if hasattr(batch, "of_batch"):
-        of_batch = batch.of_batch
-        for k in of_batch.keys():
-            v = of_batch[k]
-            if hasattr(v, "dtype") and v.dtype != torch.long and v.dtype != torch.int and v.dtype != torch.bool:
-                of_batch[k] = v.to(dtype=dtype, device=batch.coords.device)
-            elif hasattr(v, "dtype"):
-                of_batch[k] = v.to(device=batch.coords.device)
-
-    return batch
-
 class ChgLightningModule(LightningModule):
     """
     Charge density prediction with the probe point method.
@@ -125,10 +105,10 @@ class ChgLightningModule(LightningModule):
         """
         predict coefficient for GTO basis functions.
         """
-        coeffs, expo_scaling, edge_index = self.model(batch.of_batch)
+        coeffs, expo_scaling, edge_index = self.model(batch)
         
         n_orbs = self.n_orbitals[
-            (batch.atom_types.repeat(len(self.unique_atom_types), 1).T == 
+            (batch.atomic_numbers.repeat(len(self.unique_atom_types), 1).T == 
              self.unique_atom_types).nonzero()[:, 1]]
         batch_n_orbs = scatter(n_orbs, batch.batch, len(batch))
 
@@ -162,7 +142,7 @@ class ChgLightningModule(LightningModule):
         Outputs:
             - orbitals: chg values at probe points, (M,)
         """
-        unique_atom_types = torch.unique(batch.atom_types)
+        unique_atom_types = torch.unique(batch.atomic_numbers)
         
         batch_perm = torch.argsort(batch.batch[edge_index[0]])
         edge_index = edge_index[:, batch_perm]
@@ -191,24 +171,24 @@ class ChgLightningModule(LightningModule):
         for i in unique_atom_types:
             n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
             n_edge_i = scatter(
-                (batch.atom_types[edge_index[0]] == i).long(),
-                torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
+                (batch.atomic_numbers[edge_index[0]] == i).long(),
+                torch.arange(len(batch), device=batch.atomic_numbers.device).repeat_interleave(
                 n_edge), len(batch)
             )
             orb_index = self.orb_index[i.item()]
             
             edge_pred, index_probe, index_edge, _ = self.gto_dict[str(i.item())](
                 probe_coords=probe_coords, 
-                atom_coords=batch.coords[edge_index[0, batch.atom_types[edge_index[0]] == i]],
+                atom_coords=batch.pos[edge_index[0, batch.atomic_numbers[edge_index[0]] == i]],
                 n_probes=n_probe,
                 n_atoms=n_edge_i,
-                coeffs=coeffs[batch.atom_types[edge_index[0]] == i][:, orb_index],
+                coeffs=coeffs[batch.atomic_numbers[edge_index[0]] == i][:, orb_index],
                 expo_scaling=None,
                 pbc=self.pbc, cell=batch.cell, return_full=True,
-                second_cutoff_atom_coords=batch.coords[edge_index[1, batch.atom_types[edge_index[0]] == i]],
+                second_cutoff_atom_coords=batch.pos[edge_index[1, batch.atomic_numbers[edge_index[0]] == i]],
             )
 
-            current_indices = torch.where(batch.atom_types[edge_index[0]] == i)[0]
+            current_indices = torch.where(batch.atomic_numbers[edge_index[0]] == i)[0]
             global_index_edge = current_indices[index_edge]
             edge_preds.append(edge_pred)
             index_edges.append(global_index_edge)
@@ -244,7 +224,6 @@ class ChgLightningModule(LightningModule):
     
     def forward(self, batch):
         # move everything to dtype that is not long 
-        batch = move_batch_to_dtype(batch, self.dtype)
         coeffs, expo_scaling, edge_index = self.predict_coeffs(batch)
         pred = self.orbital_inference(batch, coeffs, expo_scaling, batch.n_probe, batch.probe_coords, edge_index=edge_index)        
         
