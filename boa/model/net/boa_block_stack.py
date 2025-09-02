@@ -34,7 +34,7 @@ class BoaBlockStack(nn.Module):
             aux_mol.build()
 
             overlap_matrix = get_overlap_matrix(aux_mol)
-            inv_overlap_matrix = torch.inverse(torch.tensor(overlap_matrix, dtype=torch.float64)) #+ 1e-4 * torch.eye(overlap_matrix.shape[0], dtype=torch.float64))
+            inv_overlap_matrix = torch.inverse(torch.tensor(overlap_matrix, dtype=torch.float64))
             self.inv_overlap_matrices[atomic_number] = inv_overlap_matrix.to(
                 dtype=torch.float32
             )

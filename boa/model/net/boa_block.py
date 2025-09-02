@@ -3,6 +3,7 @@ import torch
 from e3nn.o3 import Irreps, Linear
 from pyscf import gto
 from torch import Tensor, nn
+from torch.nn import ModuleDict
 from torch_geometric.index import index2ptr
 from torch_geometric.utils import to_dense_batch
 import pyscf
@@ -12,7 +13,7 @@ numbers_to_element_symbols = pyscf.data.elements.ELEMENTS
 from boa.data.of_data import get_coulomb_matrix, get_overlap_matrix
 
 
-class MessagePassAtom(nn.Module):
+class InverseMultAtom(nn.Module):
     def __init__(self, inv_overlap_matrix):
         super().__init__()
         self.register_buffer("inv_overlap_matrix", inv_overlap_matrix)
@@ -27,13 +28,10 @@ class MessagePass(nn.Module):
         super().__init__()
         self.inv_overlap_matrices = inv_overlap_matrices
         self.basis_info = basis_info
-        self.message_pass_atoms = {}
+        self.inverse_mult_atoms = ModuleDict()
         for i, atom_type in enumerate(basis_info.atomic_numbers):
-            self.message_pass_atoms[atom_type] = MessagePassAtom(
+            self.inverse_mult_atoms[str(atom_type)] = InverseMultAtom(
                 self.inv_overlap_matrices[atom_type]
-            )
-            self.register_module(
-                "message_pass_atom_" + str(atom_type), self.message_pass_atoms[atom_type]
             )
 
     def forward(self, x, message_passing_matrix, coeffs_batch):
@@ -51,13 +49,10 @@ class MessagePassAttention(nn.Module):
         self.basis_info = basis_info
         self.channels = channels
 
-        self.message_pass_atoms = {}
+        self.inverse_mult_atoms = ModuleDict()
         for i, atom_type in enumerate(basis_info.atomic_numbers):
-            self.message_pass_atoms[atom_type] = MessagePassAtom(
+            self.inverse_mult_atoms[str(atom_type)] = InverseMultAtom(
                 self.inv_overlap_matrices[atom_type]
-            )
-            self.register_module(
-                "message_pass_atom_" + str(atom_type), self.message_pass_atoms[atom_type]
             )
 
         self.alpha_mlp = nn.Sequential(
@@ -124,24 +119,14 @@ class SquaredNonlinearity(nn.Module):
         super().__init__()
         self.overlap_tensors = overlap_tensors
         self.basis_info = basis_info
-        self.squared_nonlinearities = {}
+        self.squared_nonlinearities = ModuleDict()
         for atom_type in basis_info.atomic_numbers:
-            self.squared_nonlinearities[atom_type] = SquaredNonlinearityAtom(
+            self.squared_nonlinearities[str(atom_type)] = SquaredNonlinearityAtom(
                 self.overlap_tensors[atom_type], channel_mixing, n_channels
             )
-            self.register_module(
-                "squared_nonlinearity_" + str(atom_type), self.squared_nonlinearities[atom_type]
-            )
 
-    def forward(self, x, atomic_number_masks):
-        for i, atom_type in enumerate(self.basis_info.atomic_numbers):
-            y = x[..., atomic_number_masks[atom_type], :]
-            atom_y = y.view(-1, self.basis_info.basis_dim_per_atom[i], y.shape[-1])
-            if not (atom_y.shape[0] == 0):
-                atom_y = self.squared_nonlinearities[atom_type](atom_y)
-                atom_y = atom_y.reshape(*y.shape)
-                x[..., atomic_number_masks[atom_type], :] = atom_y
-        return x
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError("SquaredNonlinearity forward pass not implemented. Use per atom forward pass instead.")
 
 
 class StableLinearNodeOperator(nn.Module):
@@ -150,7 +135,7 @@ class StableLinearNodeOperator(nn.Module):
     ):
         super().__init__()
         self.basis_info = basis_info
-        self.stable_linear_node_operators = {}
+        self.stable_linear_node_operators = ModuleDict()
         self.irrep_out_dims = np.zeros(max(basis_info.atomic_numbers) + 1)
         self.add_funcs = add_funcs
         for i, atom_type in enumerate(basis_info.atomic_numbers):
@@ -162,43 +147,12 @@ class StableLinearNodeOperator(nn.Module):
             else:
                 irreps_in = basis_info.irreps_per_atom[i]
                 irreps_out = basis_info.irreps_per_atom[i]
-            self.stable_linear_node_operators[atom_type] = StableLinearNodeOperatorAtom(
+            self.stable_linear_node_operators[str(atom_type)] = StableLinearNodeOperatorAtom(
                 atom_type, irreps_in, irreps_out, n_channels
             )
-            self.register_module(
-                "stable_linear_node_operator_" + str(atom_type),
-                self.stable_linear_node_operators[atom_type],
-            )
 
-    def forward(self, x, atomic_number_masks, atomic_numbers=None):
-        if self.add_funcs > 0:
-            dim = self.irrep_out_dims[atomic_numbers.cpu().numpy()]
-            big_atomic_number_masks = {}
-            coeff_to_atomic_number_mask = torch.repeat_interleave(
-                atomic_numbers,
-                torch.tensor(dim, device=atomic_numbers.device, dtype=torch.long),
-                dim=0,
-            )
-            for i, atomic_number in enumerate(self.basis_info.atomic_numbers):
-                coeff_mask = coeff_to_atomic_number_mask == atomic_number
-                big_atomic_number_masks[atomic_number] = torch.where(coeff_mask)[0]
-            new_x = torch.empty((int(dim.sum()), x.shape[-1]), device=x.device)
-        else:
-            new_x = None
-
-        for i, atom_type in enumerate(self.stable_linear_node_operators.keys()):
-            y = x[..., atomic_number_masks[atom_type], :]
-            atom_y = y.view(-1, self.basis_info.basis_dim_per_atom[i], y.shape[-1])
-            if not (atom_y.shape[0] == 0):
-                atom_y = self.stable_linear_node_operators[atom_type](atom_y)
-                atom_y = atom_y.reshape(-1, y.shape[-1])
-                if new_x is not None:
-                    new_x[..., big_atomic_number_masks[atom_type], :] = atom_y
-                else:
-                    x[..., atomic_number_masks[atom_type], :] = atom_y
-        if new_x is not None:
-            return new_x, dim, big_atomic_number_masks
-        return x
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError("StableLinearNodeOperator forward pass not implemented. Use per atom forward pass instead.")
 
 
 class StableLinearNodeOperatorAtom(nn.Module):
@@ -228,22 +182,12 @@ class L2FunctionNorm(nn.Module):
     def __init__(self, basis_info, channels):
         super().__init__()
         self.basis_info = basis_info
-        self.l2_norm_atom = {}
+        self.l2_norm_atom = ModuleDict()
         for i, atom_type in enumerate(basis_info.atomic_numbers):
-            self.l2_norm_atom[atom_type] = L2FunctionNormAtom(atom_type, basis_info, channels)
-            self.register_module(
-                "stable_linear_node_operator_" + str(atom_type), self.l2_norm_atom[atom_type]
-            )
+            self.l2_norm_atom[str(atom_type)] = L2FunctionNormAtom(atom_type, basis_info, channels)
 
-    def forward(self, x, atomic_number_masks):
-        for i, atom_type in enumerate(self.l2_norm_atom.keys()):
-            y = x[..., atomic_number_masks[atom_type], :]
-            atom_y = y.view(-1, self.basis_info.basis_dim_per_atom[i], y.shape[-1])
-            if not (atom_y.shape[0] == 0):
-                atom_y = self.l2_norm_atom[atom_type](atom_y)
-                atom_y = atom_y.reshape(*y.shape)
-                x[..., atomic_number_masks[atom_type], :] = atom_y
-        return x
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError("L2FunctionNorm forward pass not implemented. Use per atom forward pass instead.")
 
 
 class L2FunctionNormAtom(nn.Module):
@@ -273,25 +217,14 @@ class L2Nonlinearity(nn.Module):
     def __init__(self, basis_info, channels):
         super().__init__()
         self.basis_info = basis_info
-        self.l2_nonlinearity_atom = {}
+        self.l2_nonlinearity_atom = ModuleDict()
         for i, atom_type in enumerate(basis_info.atomic_numbers):
-            self.l2_nonlinearity_atom[atom_type] = L2NonlinearityAtom(
+            self.l2_nonlinearity_atom[str(atom_type)] = L2NonlinearityAtom(
                 atom_type, basis_info, channels
             )
-            self.register_module(
-                "stable_linear_node_operator_" + str(atom_type),
-                self.l2_nonlinearity_atom[atom_type],
-            )
 
-    def forward(self, x, atomic_number_masks):
-        for i, atom_type in enumerate(self.l2_nonlinearity_atom.keys()):
-            y = x[..., atomic_number_masks[atom_type], :]
-            atom_y = y.view(-1, self.basis_info.basis_dim_per_atom[i], y.shape[-1])
-            if not (atom_y.shape[0] == 0):
-                atom_y = self.l2_nonlinearity_atom[atom_type](atom_y)
-                atom_y = atom_y.reshape(*y.shape)
-                x[..., atomic_number_masks[atom_type], :] = atom_y
-        return x
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError("L2Nonlinearity forward pass not implemented. Use per atom forward pass instead.")
 
 
 class L2NonlinearityAtom(nn.Module):
@@ -345,14 +278,10 @@ class HeterogeneousEdgeUpdate(nn.Module):
         self.channels = channels
         self.basis_info = basis_info
 
-        self.heterogeneous_edge_update_0_atom = {}
+        self.heterogeneous_edge_update_0_atom = ModuleDict()
         for i, atomic_number in enumerate(basis_info.atomic_numbers):
             self.heterogeneous_edge_update_0_atom[atomic_number] = HeterogeneousEdgeUpdateAtom(
                 atomic_number, channels, basis_info
-            )
-            self.register_module(
-                "heterogeneous_edge_update_0_atom_" + str(atomic_number),
-                self.heterogeneous_edge_update_0_atom[atomic_number],
             )
 
     def forward(self, x, edge_index, edge_features_a, edge_features_b, edge_matrices, atomic_numbers):
@@ -553,11 +482,6 @@ class BoaBlock(nn.Module):
         self.message_pass = MessagePassAttention(inv_overlap_matrices, basis_info, in_channels)
         self.edge_update = EdgeUpdate(in_channels, basis_info)
 
-        self.integrals = {}
-        for i, atom_type in enumerate(basis_info.atomic_numbers):
-            self.integrals[atom_type] = torch.tensor(basis_info.integrals[i], dtype=torch.float32)
-            self.register_buffer("integrals_" + str(atom_type), self.integrals[atom_type])
-
     def forward(
         self,
         atom_repr,
@@ -577,41 +501,21 @@ class BoaBlock(nn.Module):
         atom_repr_res = {}
         for i, atom_type in enumerate(self.basis_info.atomic_numbers):
             if atom_type in atom_repr.keys():
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} before linear0"
-                    )
-                atom_repr_res[atom_type] = self.linear0.stable_linear_node_operators[atom_type](
+                atom_repr_res[atom_type] = self.linear0.stable_linear_node_operators[str(atom_type)](
                     atom_repr[atom_type].clone()
                 )
-                if torch.isnan(atom_repr_res[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr_res for atom type {atom_type} after linear0"
-                    )
                 if hasattr(self, "use_squared_nonlinearity") and self.use_squared_nonlinearity:
                     atom_repr[atom_type] = self.squared_nonlinearity.squared_nonlinearities[
                         atom_type
                     ](atom_repr[atom_type])
                 else:
-                    atom_repr[atom_type] = self.l2_nonlinearity.l2_nonlinearity_atom[atom_type](
+                    atom_repr[atom_type] = self.l2_nonlinearity.l2_nonlinearity_atom[str(atom_type)](
                         atom_repr[atom_type]
                     )
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} after nonlinearity"
-                    )
-                atom_repr[atom_type] = self.norm1.l2_norm_atom[atom_type](atom_repr[atom_type])
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} after normalization"
-                    )
-                atom_repr[atom_type] = self.linear1.stable_linear_node_operators[atom_type](
+                atom_repr[atom_type] = self.norm1.l2_norm_atom[str(atom_type)](atom_repr[atom_type])
+                atom_repr[atom_type] = self.linear1.stable_linear_node_operators[str(atom_type)](
                     atom_repr[atom_type]
                 )
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} after linear1"
-                    )
 
         x = from_atom_repr(y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr)
         x = self.message_pass(x, x, x, message_edge_matrices, message_edge_index, coeff_ind_to_node_ind)
@@ -621,25 +525,13 @@ class BoaBlock(nn.Module):
 
         for i, atom_type in enumerate(self.basis_info.atomic_numbers):
             if atom_type in atom_repr.keys():
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} after message passing"
-                    )
-                atom_repr[atom_type] = self.message_pass.message_pass_atoms[atom_type](
+                atom_repr[atom_type] = self.message_pass.inverse_mult_atoms[str(atom_type)](
                     atom_repr[atom_type]
                 )
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} after message passing atom"
-                    )
                 atom_repr[atom_type] = (
-                    self.linear2.stable_linear_node_operators[atom_type](atom_repr[atom_type])
+                    self.linear2.stable_linear_node_operators[str(atom_type)](atom_repr[atom_type])
                     + atom_repr_res[atom_type]
                 )
-                if torch.isnan(atom_repr[atom_type]).any():
-                    raise ValueError(
-                        f"NaN detected in atom_repr for atom type {atom_type} after linear2"
-                    )
 
         x = from_atom_repr(
             y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr
@@ -648,6 +540,5 @@ class BoaBlock(nn.Module):
         edge_features_a, edge_features_b = self.edge_update(
             x, edge_index, edge_features_a, edge_features_b, edge_matrices
         )
-        if torch.isnan(edge_features_a).any() or torch.isnan(edge_features_b).any():
-            raise ValueError("NaN detected in edge features after edge update")
+        
         return atom_repr, edge_features_a, edge_features_b

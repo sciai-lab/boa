@@ -137,7 +137,6 @@ class BOA(nn.Module):
         )
 
         self.initial_guess_module = initial_guess_module
-        # self.initial_guess_module.load_state_dict(torch.load("/export/home/mklockow/scdp/data/edge_embedding_abs_1e3_reduced_noadded.pth", map_location="cpu"))
 
     def forward(self, batch) -> Tuple[Tensor, Tensor]:
         if self.node_embedding is not None:
