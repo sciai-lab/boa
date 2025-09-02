@@ -3,7 +3,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v5.0.0
     hooks:
       # list of supported hooks: https://pre-commit.com/hooks.html
       - id: trailing-whitespace
@@ -16,6 +16,7 @@ repos:
       - id: check-toml
       - id: check-case-conflict
       - id: check-added-large-files
+        args: [--maxkb=1000]
 
   # python code formatting
   - repo: https://github.com/psf/black
@@ -40,7 +41,7 @@ repos:
 
   # python docstring formatting
   - repo: https://github.com/myint/docformatter
-    rev: v1.7.4
+    rev: eb1df34
     hooks:
       - id: docformatter
         args:
@@ -62,7 +63,6 @@ repos:
             --verbose,
             --fail-under=80,
             --ignore-init-module,
-            --ignore-init-method,
             --ignore-module,
             --ignore-nested-functions,
             -vv,
@@ -73,21 +73,20 @@ repos:
     rev: 6.0.0
     hooks:
       - id: flake8
-        args:
-          [
-            "--extend-ignore",
-            "E203,E402,E501,F401,F841,RST2,RST301",
-            "--exclude",
-            "logs/*,data/*",
-          ]
+        args: [--config=.flake8]
         additional_dependencies: [flake8-rst-docstrings==0.3.0]
 
-  # python security linter
-  - repo: https://github.com/PyCQA/bandit
-    rev: "1.7.5"
+  # Check unused imports
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.0
     hooks:
-      - id: bandit
-        args: ["-s", "B101"]
+      - id: autoflake
+        args:
+          [
+            --remove-all-unused-imports,
+            --ignore-init-module-imports,
+            --in-place,
+          ]
 
   # yaml formatting
   - repo: https://github.com/pre-commit/mirrors-prettier
@@ -97,15 +96,9 @@ repos:
         types: [yaml]
         exclude: "environment.yaml"
 
-  # shell scripts linter
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.9.0.2
-    hooks:
-      - id: shellcheck
-
   # md formatting
-  - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.16
+  - repo: https://github.com/hukkin/mdformat
+    rev: 0.7.19
     hooks:
       - id: mdformat
         args: ["--number"]
@@ -123,13 +116,7 @@ repos:
       - id: codespell
         args:
           - --skip=logs/**,data/**,*.ipynb
-          # - --ignore-words-list=abc,def
-
-  # jupyter notebook cell output clearing
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.6.1
-    hooks:
-      - id: nbstripout
+          - --ignore-words-list=bra,ket,bloc,whis
 
   # jupyter notebook linting
   - repo: https://github.com/nbQA-dev/nbQA
@@ -142,6 +129,6 @@ repos:
       - id: nbqa-flake8
         args:
           [
-            "--extend-ignore=E203,E402,E501,F401,F841",
+            "--extend-ignore=E203,E402,E501,F401,F841,W605",
             "--exclude=logs/*,data/*",
           ]
