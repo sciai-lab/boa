@@ -1,24 +1,64 @@
-# --------- pytorch --------- #
-torch>=2.0.0
-torchvision>=0.15.0
-lightning>=2.0.0
-torchmetrics>=0.11.4
+# --------- indexes (for CUDA 12.6 PyTorch wheels) --------- #
+--extra-index-url https://download.pytorch.org/whl/cu126
 
-# --------- hydra --------- #
+# --------- core/Hydra --------- #
 hydra-core==1.3.2
-hydra-colorlog==1.2.0
-hydra-optuna-sweeper==1.2.0
+hydra-colorlog
+hydra-optuna-sweeper
+omegaconf==2.3.0
 
-# --------- loggers --------- #
+# --------- PyTorch & ecosystem --------- #
+# Torch version intentionally unpinned to follow environment.yaml
+torch
+lightning==2.1.3
+# from pip section in environment.yaml
+torch_ema==0.3
+# graph / equivariant libs
+# PyG uses underscore on PyPI
+torch_geometric
+torch-cluster
+# e3nn pinned
+e3nn==0.5.6
+# tensorboard logger
+tensorboard
+
+# --------- scientific & materials stack --------- #
+# name differences: basis_set_exchange -> basis-set-exchange
+basis-set-exchange==0.9.1
+ase==3.22.1
+numpy==1.26.4
+scipy==1.12.0
+pandas==2.2.1
+plotly==5.18.0
+pymatgen==2023.11.12
+python-dotenv==1.0.1
+# conda-only name differs on pip: rdkit -> rdkit-pypi
+rdkit-pypi
+pyscf
+
+# --------- storage / utils --------- #
+lmdb==1.4.1
+lz4==4.3.2
+zarr
+loguru
+# name differences: p_tqdm -> p_tqdm (PyPI canonical accepts underscore)
+p_tqdm==1.4.0
+# progress bar
+tqdm==4.66.1
+# root project utilities
+rootutils
+# materials project helper
+mp-pyrho==0.3.0
+# debugging
+ipdb==0.13.13
+
+# --------- optional loggers (uncomment as needed) --------- #
 # wandb
 # neptune-client
 # mlflow
 # comet-ml
 # aim>=3.16.2  # no lower than 3.16.2, see https://github.com/aimhubio/aim/issues/2550
 
-# --------- others --------- #
-rootutils       # standardizing the project root setup
-pre-commit      # hooks for applying linters on commit
+# --------- dev/test tools --------- #
 rich            # beautiful text formatting in terminal
 pytest          # tests
-# sh            # for running bash commands in some tests (linux/macos only)
