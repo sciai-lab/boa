@@ -1,4 +1,5 @@
 import numpy as np
+import pyscf
 import torch
 from e3nn.o3 import Irreps, Linear
 from pyscf import gto
@@ -6,11 +7,10 @@ from torch import Tensor, nn
 from torch.nn import ModuleDict
 from torch_geometric.index import index2ptr
 from torch_geometric.utils import to_dense_batch
-import pyscf
-
-numbers_to_element_symbols = pyscf.data.elements.ELEMENTS
 
 from mldft.ofdft.basis_integrals import get_coulomb_matrix, get_overlap_matrix
+
+numbers_to_element_symbols = pyscf.data.elements.ELEMENTS
 
 
 class InverseMultAtom(nn.Module):
@@ -40,7 +40,7 @@ class MessagePass(nn.Module):
         yy = y[mask]
 
         return yy
-    
+
 
 class MessagePassAttention(nn.Module):
     def __init__(self, inv_overlap_matrices, basis_info, channels=1):
@@ -62,32 +62,28 @@ class MessagePassAttention(nn.Module):
         )
 
     def forward(self, query, key, value, edge_matrices, edge_index, coeff_ind_to_node_ind):
-        query, _ = to_dense_batch(query, coeff_ind_to_node_ind, max_num_nodes=edge_matrices.shape[-1])
+        query, _ = to_dense_batch(
+            query, coeff_ind_to_node_ind, max_num_nodes=edge_matrices.shape[-1]
+        )
         key, _ = to_dense_batch(key, coeff_ind_to_node_ind, max_num_nodes=edge_matrices.shape[-1])
-        value, mask = to_dense_batch(value, coeff_ind_to_node_ind, max_num_nodes=edge_matrices.shape[-1])
+        value, mask = to_dense_batch(
+            value, coeff_ind_to_node_ind, max_num_nodes=edge_matrices.shape[-1]
+        )
 
         edge_query = query[edge_index[0]]
         edge_key = key[edge_index[1]]
         edge_value = value[edge_index[1]]
 
-        alpha = torch.einsum(
-            "eij, eic, ejm -> ecm", edge_matrices, edge_query, edge_key
-        )
+        alpha = torch.einsum("eij, eic, ejm -> ecm", edge_matrices, edge_query, edge_key)
 
         alpha = self.alpha_mlp(alpha.reshape(alpha.shape[0], -1)).view(*alpha.shape)
-        edge_value = torch.einsum(
-            "eij, ejc -> eic", edge_matrices, edge_value
-        )
+        edge_value = torch.einsum("eij, ejc -> eic", edge_matrices, edge_value)
 
-        edge_value = torch.einsum(
-            "ecm, eic -> eim", alpha, edge_value
-        )
+        edge_value = torch.einsum("ecm, eic -> eim", alpha, edge_value)
 
         # scatter the values based on edge_index
         message = torch.zeros_like(query)
-        message = message.index_add(
-            0, edge_index[0], edge_value
-        )
+        message = message.index_add(0, edge_index[0], edge_value)
 
         message = message[mask]
         return message
@@ -126,7 +122,9 @@ class SquaredNonlinearity(nn.Module):
             )
 
     def forward(self, *args, **kwargs):
-        raise NotImplementedError("SquaredNonlinearity forward pass not implemented. Use per atom forward pass instead.")
+        raise NotImplementedError(
+            "SquaredNonlinearity forward pass not implemented. Use per atom forward pass instead."
+        )
 
 
 class StableLinearNodeOperator(nn.Module):
@@ -152,7 +150,9 @@ class StableLinearNodeOperator(nn.Module):
             )
 
     def forward(self, *args, **kwargs):
-        raise NotImplementedError("StableLinearNodeOperator forward pass not implemented. Use per atom forward pass instead.")
+        raise NotImplementedError(
+            "StableLinearNodeOperator forward pass not implemented. Use per atom forward pass instead."
+        )
 
 
 class StableLinearNodeOperatorAtom(nn.Module):
@@ -187,7 +187,9 @@ class L2FunctionNorm(nn.Module):
             self.l2_norm_atom[str(atom_type)] = L2FunctionNormAtom(atom_type, basis_info, channels)
 
     def forward(self, *args, **kwargs):
-        raise NotImplementedError("L2FunctionNorm forward pass not implemented. Use per atom forward pass instead.")
+        raise NotImplementedError(
+            "L2FunctionNorm forward pass not implemented. Use per atom forward pass instead."
+        )
 
 
 class L2FunctionNormAtom(nn.Module):
@@ -224,7 +226,9 @@ class L2Nonlinearity(nn.Module):
             )
 
     def forward(self, *args, **kwargs):
-        raise NotImplementedError("L2Nonlinearity forward pass not implemented. Use per atom forward pass instead.")
+        raise NotImplementedError(
+            "L2Nonlinearity forward pass not implemented. Use per atom forward pass instead."
+        )
 
 
 class L2NonlinearityAtom(nn.Module):
@@ -284,7 +288,9 @@ class HeterogeneousEdgeUpdate(nn.Module):
                 atomic_number, channels, basis_info
             )
 
-    def forward(self, x, edge_index, edge_features_a, edge_features_b, edge_matrices, atomic_numbers):
+    def forward(
+        self, x, edge_index, edge_features_a, edge_features_b, edge_matrices, atomic_numbers
+    ):
         """
         x: Node features of shape (num_nodes, channels)
         edge_index: Edge indices of shape (2, num_edges)
@@ -303,14 +309,20 @@ class HeterogeneousEdgeUpdate(nn.Module):
                 edge_features_b_masked = edge_features_b[atomic_number_mask]
                 edge_matrices_masked = edge_matrices[atomic_number_mask]
 
-                x_edge_a_masked, x_edge_b_masked = self.heterogeneous_edge_update_0_atom[atomic_number](
-                    x, edge_index_masked, edge_features_a_masked, edge_features_b_masked, edge_matrices_masked
+                x_edge_a_masked, x_edge_b_masked = self.heterogeneous_edge_update_0_atom[
+                    atomic_number
+                ](
+                    x,
+                    edge_index_masked,
+                    edge_features_a_masked,
+                    edge_features_b_masked,
+                    edge_matrices_masked,
                 )
 
                 x_edge_a[atomic_number_mask] = x_edge_a_masked
                 x_edge_b[atomic_number_mask] = x_edge_b_masked
         return x_edge_a, x_edge_b
-            
+
 
 class HeterogeneousEdgeUpdateAtom(nn.Module):
     def __init__(self, atomic_number, channels, basis_info):
@@ -320,10 +332,10 @@ class HeterogeneousEdgeUpdateAtom(nn.Module):
         self.basis_info = basis_info
 
         self.channel_mlp = nn.Sequential(
-            nn.Linear(2*channels**2, 2*channels**2),
+            nn.Linear(2 * channels**2, 2 * channels**2),
             nn.SiLU(),
-            nn.LayerNorm(2*channels**2),
-            nn.Linear(2*channels**2, 4*channels**2),
+            nn.LayerNorm(2 * channels**2),
+            nn.Linear(2 * channels**2, 4 * channels**2),
         )
         self.norm_edge_a = MatrixNormalization()
         self.norm_edge_b = MatrixNormalization()
@@ -337,11 +349,17 @@ class HeterogeneousEdgeUpdateAtom(nn.Module):
         edge_overlap = torch.einsum(
             "eij, eic, ejm -> ecm", edge_matrices, edge_features_a, edge_features_b
         )
-        node_overlap = torch.einsum(
-            "eij, eic, ejm -> ecm", edge_matrices, x_node_a, x_node_b
-        )
+        node_overlap = torch.einsum("eij, eic, ejm -> ecm", edge_matrices, x_node_a, x_node_b)
         edge_w_a, edge_w_b, node_w_a, node_w_b = torch.chunk(
-            self.channel_mlp(torch.cat([edge_overlap.reshape(edge_overlap.shape[0], -1), node_overlap.reshape(node_overlap.shape[0], -1)], dim=-1)),
+            self.channel_mlp(
+                torch.cat(
+                    [
+                        edge_overlap.reshape(edge_overlap.shape[0], -1),
+                        node_overlap.reshape(node_overlap.shape[0], -1),
+                    ],
+                    dim=-1,
+                )
+            ),
             4,
             dim=-1,
         )
@@ -360,21 +378,21 @@ class HeterogeneousEdgeUpdateAtom(nn.Module):
 
         return x_edge_a, x_edge_b
 
+
 class EdgeUpdate(nn.Module):
     def __init__(self, channels, basis_info):
         super().__init__()
         self.channel_mlp = nn.Sequential(
-            nn.Linear(2*channels**2, 2*channels**2),
+            nn.Linear(2 * channels**2, 2 * channels**2),
             nn.SiLU(),
-            nn.LayerNorm(2*channels**2),
-            nn.Linear(2*channels**2, 4*channels**2 + 4*channels),
+            nn.LayerNorm(2 * channels**2),
+            nn.Linear(2 * channels**2, 4 * channels**2 + 4 * channels),
         )
         self.channels = channels
         self.norm_edge_a = MatrixNormalization()
         self.norm_edge_b = MatrixNormalization()
         self.norm_node_a = MatrixNormalization()
         self.norm_node_b = MatrixNormalization()
-
 
     def forward(self, x, edge_index, edge_features_a, edge_features_b, edge_matrices):
         x_node_a = x[edge_index[0]]
@@ -383,12 +401,18 @@ class EdgeUpdate(nn.Module):
         edge_overlap = torch.einsum(
             "eij, eic, ejm -> ecm", edge_matrices, edge_features_a, edge_features_b
         )
-        node_overlap = torch.einsum(
-            "eij, eic, ejm -> ecm", edge_matrices, x_node_a, x_node_b
+        node_overlap = torch.einsum("eij, eic, ejm -> ecm", edge_matrices, x_node_a, x_node_b)
+        mlp_res = self.channel_mlp(
+            torch.cat(
+                [
+                    edge_overlap.reshape(edge_overlap.shape[0], -1),
+                    node_overlap.reshape(node_overlap.shape[0], -1),
+                ],
+                dim=-1,
+            )
         )
-        mlp_res = self.channel_mlp(torch.cat([edge_overlap.reshape(edge_overlap.shape[0], -1), node_overlap.reshape(node_overlap.shape[0], -1)], dim=-1))
-        weights = mlp_res[:, :-4 * self.channels]
-        factors = mlp_res[:, -4 * self.channels:]
+        weights = mlp_res[:, : -4 * self.channels]
+        factors = mlp_res[:, -4 * self.channels :]
         edge_w_a, edge_w_b, node_w_a, node_w_b = torch.chunk(
             weights,
             4,
@@ -404,13 +428,17 @@ class EdgeUpdate(nn.Module):
         node_w_a = self.norm_node_a(node_w_a)
         node_w_b = self.norm_node_b(node_w_b)
 
-        factor_edge_a = factors[:, -4 * self.channels: -3 * self.channels][:, None, :]
-        factor_edge_b = factors[:, -3 * self.channels: -2 * self.channels][:, None, :]
-        factor_node_a = factors[:, -2 * self.channels: -1 * self.channels][:, None, :]
-        factor_node_b = factors[:, -1 * self.channels:][:, None, :]
+        factor_edge_a = factors[:, -4 * self.channels : -3 * self.channels][:, None, :]
+        factor_edge_b = factors[:, -3 * self.channels : -2 * self.channels][:, None, :]
+        factor_node_a = factors[:, -2 * self.channels : -1 * self.channels][:, None, :]
+        factor_node_b = factors[:, -1 * self.channels :][:, None, :]
 
-        x_edge_a = (factor_edge_a * (edge_features_a @ edge_w_a) + factor_node_a * (x_node_a @ node_w_a)) / 2
-        x_edge_b = (factor_edge_b * (edge_features_b @ edge_w_b) + factor_node_b * (x_node_b @ node_w_b)) / 2
+        x_edge_a = (
+            factor_edge_a * (edge_features_a @ edge_w_a) + factor_node_a * (x_node_a @ node_w_a)
+        ) / 2
+        x_edge_b = (
+            factor_edge_b * (edge_features_b @ edge_w_b) + factor_node_b * (x_node_b @ node_w_b)
+        ) / 2
 
         return x_edge_a, x_edge_b
 
@@ -501,24 +529,28 @@ class BoaBlock(nn.Module):
         atom_repr_res = {}
         for i, atom_type in enumerate(self.basis_info.atomic_numbers):
             if atom_type in atom_repr.keys():
-                atom_repr_res[atom_type] = self.linear0.stable_linear_node_operators[str(atom_type)](
-                    atom_repr[atom_type].clone()
-                )
+                atom_repr_res[atom_type] = self.linear0.stable_linear_node_operators[
+                    str(atom_type)
+                ](atom_repr[atom_type].clone())
                 if hasattr(self, "use_squared_nonlinearity") and self.use_squared_nonlinearity:
                     atom_repr[atom_type] = self.squared_nonlinearity.squared_nonlinearities[
                         atom_type
                     ](atom_repr[atom_type])
                 else:
-                    atom_repr[atom_type] = self.l2_nonlinearity.l2_nonlinearity_atom[str(atom_type)](
-                        atom_repr[atom_type]
-                    )
-                atom_repr[atom_type] = self.norm1.l2_norm_atom[str(atom_type)](atom_repr[atom_type])
+                    atom_repr[atom_type] = self.l2_nonlinearity.l2_nonlinearity_atom[
+                        str(atom_type)
+                    ](atom_repr[atom_type])
+                atom_repr[atom_type] = self.norm1.l2_norm_atom[str(atom_type)](
+                    atom_repr[atom_type]
+                )
                 atom_repr[atom_type] = self.linear1.stable_linear_node_operators[str(atom_type)](
                     atom_repr[atom_type]
                 )
 
         x = from_atom_repr(y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr)
-        x = self.message_pass(x, x, x, message_edge_matrices, message_edge_index, coeff_ind_to_node_ind)
+        x = self.message_pass(
+            x, x, x, message_edge_matrices, message_edge_index, coeff_ind_to_node_ind
+        )
         atom_repr, type_ptr, inds, mask, y = to_atom_repr(
             x, self.basis_info, atomic_numbers, coeff_ind_to_node_ind
         )
@@ -533,12 +565,12 @@ class BoaBlock(nn.Module):
                     + atom_repr_res[atom_type]
                 )
 
-        x = from_atom_repr(
-            y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr
-        )
-        x = to_dense_batch(x, coeff_ind_to_node_ind, max_num_nodes=max(self.basis_info.basis_dim_per_atom))[0]
+        x = from_atom_repr(y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr)
+        x = to_dense_batch(
+            x, coeff_ind_to_node_ind, max_num_nodes=max(self.basis_info.basis_dim_per_atom)
+        )[0]
         edge_features_a, edge_features_b = self.edge_update(
             x, edge_index, edge_features_a, edge_features_b, edge_matrices
         )
-        
+
         return atom_repr, edge_features_a, edge_features_b

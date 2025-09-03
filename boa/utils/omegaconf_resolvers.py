@@ -10,12 +10,15 @@ You can change them by setting the environment variables ``BOA_RUN_NAME_KEY_VALU
     export BOA_RUN_NAME_OVERRIDE_SEP=", "
 """
 
+import logging
 import os
 
 from omegaconf import OmegaConf
 
 from mldft.utils.counter_file import get_and_increment_counter
 from mldft.utils.environ import get_path_from_environment_variable
+
+pylogger = logging.getLogger(__name__)
 
 KEY_VALUE_SEP = os.environ.get("BOA_RUN_NAME_KEY_VALUE_SEP", "-")
 OVERRIDE_SEP = os.environ.get("BOA_RUN_NAME_OVERRIDE_SEP", "__")
@@ -205,7 +208,7 @@ def smart_override_dirname(overrides_string: str, exclude_keys: list | str = Non
             try:
                 result.append(f"from_checkpoint_{checkpoint_path_to_run_number(value)}")
             except ValueError:
-                logger.warning(
+                pylogger.warning(
                     f"Could not convert checkpoint path to run number, just adding 'from_checkpoint' to run name. "
                     f"(path: {value})."
                 )
@@ -215,7 +218,7 @@ def smart_override_dirname(overrides_string: str, exclude_keys: list | str = Non
             try:
                 result.append(f"from_weight_checkpoint_{checkpoint_path_to_run_number(value)}")
             except ValueError:
-                logger.warning(
+                pylogger.warning(
                     f"Could not convert weight checkpoint path to run number, just adding 'from_weight_checkpoint' "
                     f"to run name. (path: {value})."
                 )

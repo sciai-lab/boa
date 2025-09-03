@@ -1,30 +1,25 @@
-import logging
 import json
-from typing import List
+import logging
 from pathlib import Path
+from typing import List
 
 import hydra
 import lightning.pytorch as pl
 import omegaconf
 import rootutils
 import torch
-from lightning.pytorch import Callback
-from omegaconf import DictConfig, ListConfig, open_dict
-torch.multiprocessing.set_sharing_strategy('file_system')
-
-from lightning.pytorch import seed_everything
-from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
-
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
-from scdp.common.system import log_hyperparameters, PROJECT_ROOT
-
-# this import registers custom omegaconf resolvers
-import boa.utils.omegaconf_resolvers  # noqa
+from lightning.pytorch import Callback, seed_everything
+from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 
 # NOTE: disable slurm detection of lightning
 from lightning.pytorch.plugins.environments import SLURMEnvironment
-SLURMEnvironment.detect = lambda: False
+from omegaconf import DictConfig, ListConfig, open_dict
 
+# this import registers custom omegaconf resolvers
+import boa.utils.omegaconf_resolvers  # noqa
+from scdp.common.system import PROJECT_ROOT, log_hyperparameters
+
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH
@@ -42,8 +37,9 @@ SLURMEnvironment.detect = lambda: False
 # more info: https://github.com/ashleve/rootutils
 # ------------------------------------------------------------------------------------ #
 
+torch.multiprocessing.set_sharing_strategy("file_system")
+SLURMEnvironment.detect = lambda: False
 pylogger = logging.getLogger(__name__)
-
 
 
 def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
@@ -79,11 +75,9 @@ def run(cfg: DictConfig) -> str:
 
     # Instantiate datamodule
     pylogger.info(f"Instantiating <{cfg.data['_target_']}>")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(
-        cfg.data, _recursive_=False
-    )
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data, _recursive_=False)
     datamodule.setup(stage="fit")
-        
+
     metadata = getattr(datamodule, "metadata", None)
     if metadata is None:
         pylogger.warning(
@@ -93,7 +87,10 @@ def run(cfg: DictConfig) -> str:
     # Instantiate model
     pylogger.info(f"Instantiating <{cfg.model['_target_']}>")
     model: pl.LightningModule = hydra.utils.instantiate(
-        cfg.model, train=cfg, _recursive_=False, metadata=metadata,
+        cfg.model,
+        train=cfg,
+        _recursive_=False,
+        metadata=metadata,
     )
 
     callbacks: List[Callback] = build_callbacks(cfg.callbacks)
@@ -112,12 +109,10 @@ def run(cfg: DictConfig) -> str:
         )
     else:
         logger = TensorBoardLogger(**cfg.logger.tensorboard)
-        pylogger.info(
-            f"TensorBoard Logger logs into <{cfg.logger.tensorboard.save_dir}>."
-        )
+        pylogger.info(f"TensorBoard Logger logs into <{cfg.logger.tensorboard.save_dir}>.")
 
-    ckpt = None    
-    
+    ckpt = None
+
     trainer = pl.Trainer(
         logger=logger,
         callbacks=callbacks,
@@ -131,14 +126,18 @@ def run(cfg: DictConfig) -> str:
     log_hyperparameters(cfg, model, trainer)
     with open(Path(storage_dir) / "metadata.json", "w") as f:
         json.dump(metadata, f)
-    
-    assert not (cfg.ckpt_path and cfg.weight_ckpt_path), "Only one of `ckpt_path` or `weight_ckpt_path` can be provided."
+
+    assert not (cfg.ckpt_path and cfg.weight_ckpt_path), (
+        "Only one of `ckpt_path` or `weight_ckpt_path` can be provided."
+    )
     if cfg.ckpt_path:
         ckpt = cfg.ckpt_path
         pylogger.info(f"Using checkpoint: {ckpt}")
     elif cfg.weight_ckpt_path:
         # load state dict of model
-        state = torch.load(cfg.weight_ckpt_path, map_location="cpu", weights_only=False)["state_dict"]
+        state = torch.load(cfg.weight_ckpt_path, map_location="cpu", weights_only=False)[
+            "state_dict"
+        ]
         model.load_state_dict(state, strict=False)
         pylogger.info(f"Loaded model weights from: {cfg.weight_ckpt_path}")
 
@@ -152,7 +151,10 @@ def run(cfg: DictConfig) -> str:
             pre_cfg.model.use_radial_correction = False
 
         pre_model = hydra.utils.instantiate(
-            pre_cfg.model, train=pre_cfg, _recursive_=False, metadata=metadata,
+            pre_cfg.model,
+            train=pre_cfg,
+            _recursive_=False,
+            metadata=metadata,
         )
 
         pre_trainer = pl.Trainer(
@@ -160,16 +162,12 @@ def run(cfg: DictConfig) -> str:
             **pre_cfg.trainer,
         )
 
-        pre_trainer.fit(
-            pre_model, datamodule.train_dataloader(), datamodule.val_dataloader()
-        )
+        pre_trainer.fit(pre_model, datamodule.train_dataloader(), datamodule.val_dataloader())
 
         model.model.initial_guess_module.load_state_dict(pre_model.model.state_dict())
 
     pylogger.info("starting training.")
-    trainer.fit(
-        model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=ckpt
-    )
+    trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=ckpt)
 
     if (
         datamodule.test_dataset is not None
@@ -181,6 +179,7 @@ def run(cfg: DictConfig) -> str:
     # Logger closing to release resources/avoid multi-run conflicts
     if logger is not None:
         logger.experiment.finish()
+
 
 @hydra.main(config_path=str(PROJECT_ROOT / "configs"), config_name="train", version_base="1.1")
 def main(cfg: omegaconf.DictConfig):

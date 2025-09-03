@@ -3,14 +3,7 @@
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    TypeVar,
-    Union,
-)
+from typing import Any, Dict, List, Optional, TypeVar, Union
 
 import torch
 from torch import Tensor
@@ -28,6 +21,7 @@ from boa.data.overlap_matrix import OverlapMatrix
 T = TypeVar("T")
 SliceDictType = Dict[str, Union[Tensor, Dict[str, Tensor]]]
 IncDictType = Dict[str, Union[Tensor, Dict[str, Tensor]]]
+
 
 class OFCollater:
     """Collater for OF-DFT data.
@@ -128,9 +122,9 @@ def collate(
     data_list,
     increment: bool = True,
     add_batch: bool = True,
-    follow_batch = None,
-    exclude_keys = None,
-    list_keys = None,  # Added to the original implementation
+    follow_batch=None,
+    exclude_keys=None,
+    list_keys=None,  # Added to the original implementation
 ):
     """Collates a list of `data` objects into a single object of type `cls`.
 

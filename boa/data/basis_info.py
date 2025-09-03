@@ -1,16 +1,13 @@
 """The :class:`BasisInfo` class holds ML-relevant information about the basis."""
+
 from typing import Dict
 
 import numpy as np
-from mldft.ml.data.components.basis_info import _irreps_list_to_array
-from mldft.ofdft.basis_integrals import get_normalization_vector
 import pyscf
-import torch
-from e3nn.o3 import Irreps
-from omegaconf import OmegaConf
 
-from mldft.utils.molecules import build_mol_with_even_tempered_basis, construct_aux_mol
 from mldft.ml.data.components.basis_info import BasisInfo as BaseBasisInfo
+from mldft.utils.molecules import build_mol_with_even_tempered_basis
+
 
 class BasisInfo(BaseBasisInfo):
     @classmethod
@@ -19,7 +16,7 @@ class BasisInfo(BaseBasisInfo):
         atomic_numbers: list[int] | np.ndarray,
         basis: str | list[str] = "6-31G(2df,p)",
         beta: float = 2.5,
-        even_tempered = True,
+        even_tempered=True,
         uncontracted: bool = False,
         add_basis_functions: Dict[str, list[float]] | None = None,
     ) -> "BasisInfo":
@@ -40,9 +37,9 @@ class BasisInfo(BaseBasisInfo):
         else:
             basis_list = basis
 
-        assert len(atomic_numbers) == len(
-            set(atomic_numbers)
-        ), "atomic_numbers values must be unique."
+        assert len(atomic_numbers) == len(set(atomic_numbers)), (
+            "atomic_numbers values must be unique."
+        )
         atomic_numbers = np.array(atomic_numbers, dtype=np.uint8)
         one_atom_mols = []
         for i in atomic_numbers:
@@ -59,9 +56,7 @@ class BasisInfo(BaseBasisInfo):
                         new_basis = {}
                         for key in one_atom_mol_tmp._basis:
                             new_basis[key] = pyscf.gto.uncontract(one_atom_mol_tmp._basis[key])
-                        one_atom_mol = pyscf.gto.M(
-                            atom=f"{i} 0 0 0", spin=None, basis=new_basis
-                        )
+                        one_atom_mol = pyscf.gto.M(atom=f"{i} 0 0 0", spin=None, basis=new_basis)
                     else:
                         one_atom_mol = one_atom_mol_tmp
                 if basis_dict is None:
@@ -72,12 +67,8 @@ class BasisInfo(BaseBasisInfo):
             if add_basis_functions is not None:
                 element = pyscf.data.elements.ELEMENTS[i]
                 if element in add_basis_functions:
-                    basis_dict[element].extend(
-                        add_basis_functions[element]
-                    )
-            one_atom_mol = pyscf.gto.M(
-                atom=f"{i} 0 0 0", spin=None, basis=basis_dict
-            )
+                    basis_dict[element].extend(add_basis_functions[element])
+            one_atom_mol = pyscf.gto.M(atom=f"{i} 0 0 0", spin=None, basis=basis_dict)
             one_atom_mols.append(one_atom_mol)
         basis_dict, irreps_per_atom, basis_integrals = cls.get_irreps_and_integrals(one_atom_mols)
         return cls(
@@ -86,4 +77,3 @@ class BasisInfo(BaseBasisInfo):
             irreps_per_atom=irreps_per_atom,
             integrals=basis_integrals,
         )
-    

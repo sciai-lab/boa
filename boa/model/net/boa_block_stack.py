@@ -1,14 +1,14 @@
-import numpy as np
+import pyscf
 import torch
 from pyscf import gto
 from torch import Tensor, nn
-import pyscf
 
 from boa.data.basis_info import BasisInfo
-from mldft.ofdft.basis_integrals import get_overlap_matrix
 from boa.model.net.boa_block import from_atom_repr, to_atom_repr
+from mldft.ofdft.basis_integrals import get_overlap_matrix
 
 numbers_to_element_symbols = pyscf.data.elements.ELEMENTS
+
 
 class BoaBlockStack(nn.Module):
     def __init__(
@@ -18,7 +18,7 @@ class BoaBlockStack(nn.Module):
         basis_info: BasisInfo,
         hidden_channels: int,
         use_squared_nonlinearity=False,
-        hierarchical: bool = False
+        hierarchical: bool = False,
     ) -> None:
         super().__init__()
         self.n_blocks = n_blocks
@@ -35,9 +35,7 @@ class BoaBlockStack(nn.Module):
 
             overlap_matrix = get_overlap_matrix(aux_mol)
             inv_overlap_matrix = torch.inverse(torch.tensor(overlap_matrix, dtype=torch.float64))
-            self.inv_overlap_matrices[atomic_number] = inv_overlap_matrix.to(
-                dtype=torch.float32
-            )
+            self.inv_overlap_matrices[atomic_number] = inv_overlap_matrix.to(dtype=torch.float32)
 
         self.blocks = nn.ModuleList(
             [
@@ -60,16 +58,26 @@ class BoaBlockStack(nn.Module):
                 use_squared_nonlinearity,
             )
         )
-        
 
     def forward(
-        self, x, coeff_ind_to_node_ind, atomic_numbers, edge_index, message_edge_index, edge_features_a=None, edge_features_b=None, edge_matrices=None, message_edge_matrices=None
+        self,
+        x,
+        coeff_ind_to_node_ind,
+        atomic_numbers,
+        edge_index,
+        message_edge_index,
+        edge_features_a=None,
+        edge_features_b=None,
+        edge_matrices=None,
+        message_edge_matrices=None,
     ) -> Tensor:
         atom_repr, type_ptr, inds, mask, y = to_atom_repr(
             x, self.basis_info, atomic_numbers, coeff_ind_to_node_ind
         )
         if self.hierarchical:
-            atom_repr_out = {atom_type: torch.zeros_like(atom_repr[atom_type]) for atom_type in atom_repr.keys()}
+            atom_repr_out = {
+                atom_type: torch.zeros_like(atom_repr[atom_type]) for atom_type in atom_repr.keys()
+            }
         for i in range(self.n_blocks):
             atom_repr, edge_features_a, edge_features_b = self.blocks[i](
                 atom_repr,
@@ -93,7 +101,7 @@ class BoaBlockStack(nn.Module):
 
         if self.hierarchical:
             atom_repr = atom_repr_out
-            
+
         x = from_atom_repr(y, self.basis_info, atomic_numbers, type_ptr, inds, mask, atom_repr)
-        
-        return x, edge_features_a, edge_features_b 
+
+        return x, edge_features_a, edge_features_b
