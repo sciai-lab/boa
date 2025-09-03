@@ -16,11 +16,15 @@ markers = [
 minversion = "6.0"
 testpaths = "tests/"
 
+[tool.isort]
+known_first_party = ["scdp", "mldft"]
+
 [tool.ruff]
 exclude = [
     "scdp/",
     "sciai-dft/",
 ]
+line-length = 99
 
 [tool.ruff.lint]
 ignore = ["E741"]

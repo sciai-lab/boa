@@ -1,4 +1,11 @@
 repos:
+# python import sorting
+- repo: https://github.com/PyCQA/isort
+  rev: 5.12.0
+  hooks:
+    - id: isort
+      args: [ "--profile", "black", "--filter-files", "--skip", "scdp", "--skip", "sciai-dft" ]
+
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
   rev: v0.12.11
