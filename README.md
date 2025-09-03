@@ -5,14 +5,14 @@ Conda
 ```bash
 conda env create -f environment.yaml
 conda activate boa
-pip install -e scdp/ sciai-dft/ .
+pip install -e scdp/ -e sciai-dft/ -e .
 ```
 UV
 ```bash
 uv venv --python=3.11
 source .venv/bin/activate
 uv pip install -r requirements.txt --index-strategy unsafe-best-match
-uv pip install -e scdp/ sciai-dft/ .
+uv pip install -e scdp/ -e sciai-dft/ -e .
 ```
 
 ## Environment Variables
