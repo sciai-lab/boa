@@ -1,20 +1,18 @@
 import json
 import random
-from typing import Optional, Dict
 from pathlib import Path
-from tqdm import tqdm
+from typing import Dict, Optional
 
 import hydra
-from hydra.utils import instantiate
 import numpy as np
 import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
 from torch.utils.data import Dataset, Subset
+from tqdm import tqdm
 
-from scdp.common.pyg import DataLoader
 from boa.data.dataloader import ProbeDataLoader
-from boa.data.basis_info import BasisInfo
+from scdp.common.pyg import DataLoader
 
 
 def worker_init_fn(id: int):
@@ -34,8 +32,8 @@ def worker_init_fn(id: int):
     np.random.seed(ss.generate_state(4))
     random.seed(uint64_seed)
 
+
 class DataModule(pl.LightningDataModule):
-    
     def __init__(
         self,
         dataset: DictConfig,
@@ -64,8 +62,8 @@ class DataModule(pl.LightningDataModule):
         self.train_dataset = Subset(self.dataset, self.splits["train"])
         self.val_dataset = Subset(self.dataset, self.splits["validation"])
         self.test_dataset = Subset(self.dataset, self.splits["test"])
-        if (Path(self.dataset.path) / 'metadata_full.json').exists():
-            with open(self.dataset.path / 'metadata_full.json', 'r') as fp:
+        if (Path(self.dataset.path) / "metadata_full.json").exists():
+            with open(self.dataset.path / "metadata_full.json", "r") as fp:
                 self.metadata = json.load(fp)
         else:
             self.metadata = self.get_metadata()
@@ -75,25 +73,25 @@ class DataModule(pl.LightningDataModule):
         x_2 = 0
         unique_atom_types = set()
         avg_num_neighbors = 0
-        print('get metadata.')
+        print("get metadata.")
         progress = tqdm(total=len(self.train_dataset))
         for data in self.train_dataset:
             x_sum += data.chg_labels.mean()
-            x_2 += (data.chg_labels ** 2).mean()
+            x_2 += (data.chg_labels**2).mean()
             unique_atom_types.update(data.atom_types.numpy().tolist())
             avg_num_neighbors += data.edge_index.shape[1] / len(data.atom_types) / 2
             progress.update(1)
         x_mean = x_sum / len(self.train_dataset)
-        x_var = x_2 / len(self.train_dataset) - x_mean ** 2
+        x_var = x_2 / len(self.train_dataset) - x_mean**2
         avg_num_neighbors = int(avg_num_neighbors / len(self.train_dataset))
         # this is the avg num neighbors without the probes
         metadata = {
-            'target_mean': x_mean.item(), 
-            'target_var': x_var.item(), 
-            'avg_num_neighbors': avg_num_neighbors,
-            'unique_atom_types': list(unique_atom_types)
+            "target_mean": x_mean.item(),
+            "target_var": x_var.item(),
+            "avg_num_neighbors": avg_num_neighbors,
+            "unique_atom_types": list(unique_atom_types),
         }
-        with open(self.dataset.path / 'metadata_full.json', 'w') as fp:
+        with open(self.dataset.path / "metadata_full.json", "w") as fp:
             json.dump(metadata, fp)
         return metadata
 
@@ -104,9 +102,9 @@ class DataModule(pl.LightningDataModule):
             batch_size=self.batch_size.train,
             num_workers=self.num_workers.train,
             worker_init_fn=worker_init_fn,
-            **self.dataloader_kwargs
+            **self.dataloader_kwargs,
         )
-    
+
     def val_dataloader(self):
         return DataLoader(
             self.val_dataset,
@@ -114,9 +112,9 @@ class DataModule(pl.LightningDataModule):
             batch_size=self.batch_size.val,
             num_workers=self.num_workers.val,
             worker_init_fn=worker_init_fn,
-            **self.dataloader_kwargs
+            **self.dataloader_kwargs,
         )
-        
+
     def test_dataloader(self):
         return DataLoader(
             self.test_dataset,
@@ -124,15 +122,12 @@ class DataModule(pl.LightningDataModule):
             batch_size=self.batch_size.val,
             num_workers=self.num_workers.val,
             worker_init_fn=worker_init_fn,
-            **self.dataloader_kwargs
+            **self.dataloader_kwargs,
         )
-        
+
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}("
-            f"{self.dataset=}, "
-            f"{self.num_workers=}, "
-            f"{self.batch_size=})"
+            f"{self.__class__.__name__}({self.dataset=}, {self.num_workers=}, {self.batch_size=})"
         )
 
 
@@ -144,7 +139,7 @@ class ProbeDataModule(DataModule):
         num_workers: DictConfig,
         batch_size: DictConfig,
         n_probe: DictConfig,
-        dataloader_kwargs: DictConfig
+        dataloader_kwargs: DictConfig,
     ):
         super().__init__(dataset, split_file, num_workers, batch_size, dataloader_kwargs)
         self.n_probe = n_probe
@@ -158,7 +153,7 @@ class ProbeDataModule(DataModule):
                 num_workers=self.num_workers.train,
                 n_probe=self.n_probe.train,
                 worker_init_fn=worker_init_fn,
-                **self.dataloader_kwargs
+                **self.dataloader_kwargs,
             )
         else:
             return DataLoader(
@@ -167,7 +162,7 @@ class ProbeDataModule(DataModule):
                 batch_size=self.batch_size.train,
                 num_workers=self.num_workers.train,
                 worker_init_fn=worker_init_fn,
-                **self.dataloader_kwargs
+                **self.dataloader_kwargs,
             )
 
     def val_dataloader(self):
@@ -179,7 +174,7 @@ class ProbeDataModule(DataModule):
                 num_workers=self.num_workers.val,
                 n_probe=self.n_probe.val,
                 worker_init_fn=worker_init_fn,
-                **self.dataloader_kwargs
+                **self.dataloader_kwargs,
             )
         else:
             return DataLoader(
@@ -188,9 +183,9 @@ class ProbeDataModule(DataModule):
                 batch_size=self.batch_size.val,
                 num_workers=self.num_workers.val,
                 worker_init_fn=worker_init_fn,
-                **self.dataloader_kwargs
+                **self.dataloader_kwargs,
             )
-    
+
     def test_dataloader(self):
         if self.n_probe.test > 0:
             return ProbeDataLoader(
@@ -200,7 +195,7 @@ class ProbeDataModule(DataModule):
                 num_workers=self.num_workers.test,
                 n_probe=self.n_probe.test,
                 worker_init_fn=worker_init_fn,
-                **self.dataloader_kwargs
+                **self.dataloader_kwargs,
             )
         else:
             return DataLoader(
@@ -209,7 +204,7 @@ class ProbeDataModule(DataModule):
                 batch_size=self.batch_size.test,
                 num_workers=self.num_workers.test,
                 worker_init_fn=worker_init_fn,
-                **self.dataloader_kwargs
+                **self.dataloader_kwargs,
             )
 
     def __repr__(self) -> str:

@@ -1,13 +1,17 @@
 from functools import partial
+
 import numpy as np
 import torch
+
 from boa.data.basis_info import BasisInfo
-from mldft.ml.data.components.of_data import OFData
 from boa.data.overlap_matrix import OverlapMatrix
-from mldft.ml.data.components.of_data import Representation
+from mldft.ml.data.components.convert_transforms import (
+    AddRadiusEdgeIndex as BaseAddRadiusEdgeIndex,
+)
+from mldft.ml.data.components.convert_transforms import apply_to_attributes, dtype_map
+from mldft.ml.data.components.of_data import OFData, Representation
 from mldft.ofdft.basis_integrals import get_overlap_matrix
 from mldft.utils.molecules import build_molecule_np, build_molecule_ofdata
-from mldft.ml.data.components.convert_transforms import AddRadiusEdgeIndex as BaseAddRadiusEdgeIndex, apply_to_attributes, dtype_map
 
 
 class MasterTransform:
@@ -28,45 +32,23 @@ class SampleProbe:
         sample = sample.sample_probe(n_probe=min(self.n_probe, sample.n_probe))
         return sample
 
+
 class ConvertToOFData:
     def __init__(self, basis_info: BasisInfo):
         self.basis_info = basis_info
 
     def __call__(self, sample):
-        mol = build_molecule_np(charges = sample.atom_types,
-            positions = sample.coords, basis = self.basis_info.basis_dict)
+        mol = build_molecule_np(
+            charges=sample.atom_types, positions=sample.coords, basis=self.basis_info.basis_dict
+        )
         of_data = OFData.minimal_sample_from_mol(mol, self.basis_info)
 
-        of_data.add_item(
-            "n_probe",
-            sample.n_probe,
-            Representation.NONE
-        )
-        of_data.add_item(
-            "probe_coords",
-            sample.probe_coords,
-            Representation.NONE
-        )
-        of_data.add_item(
-            "chg_labels",
-            sample.chg_labels,
-            Representation.NONE
-        )
-        of_data.add_item(
-            "n_atom",
-            sample.n_atom,
-            Representation.NONE
-        )
-        of_data.add_item(
-            "n_vnode",
-            sample.n_vnode,
-            Representation.NONE
-        )
-        of_data.add_item(
-            "cell",
-            sample.cell,
-            Representation.NONE
-        )
+        of_data.add_item("n_probe", sample.n_probe, Representation.NONE)
+        of_data.add_item("probe_coords", sample.probe_coords, Representation.NONE)
+        of_data.add_item("chg_labels", sample.chg_labels, Representation.NONE)
+        of_data.add_item("n_atom", sample.n_atom, Representation.NONE)
+        of_data.add_item("n_vnode", sample.n_vnode, Representation.NONE)
+        of_data.add_item("cell", sample.cell, Representation.NONE)
         return of_data
 
 
@@ -120,28 +102,36 @@ class AddMessagePassingMatrix:
         )
 
         return sample
-    
+
 
 class AddEdgeMatrices:
-    def __init__(self, basis_info: BasisInfo, name: str = "edge_matrices", edge_name: str = "edge_index"):
+    def __init__(
+        self, basis_info: BasisInfo, name: str = "edge_matrices", edge_name: str = "edge_index"
+    ):
         self.basis_info = basis_info
         self.name = name
         self.edge_name = edge_name
 
     def __call__(self, sample):
-        assert hasattr(sample, "message_passing_matrix"), "Sample must have message_passing_matrix attribute. Apply AddMessagePassingMatrix first."
+        assert hasattr(sample, "message_passing_matrix"), (
+            "Sample must have message_passing_matrix attribute. Apply AddMessagePassingMatrix first."
+        )
 
         edge_matrices = []
         for edge in sample[self.edge_name].T:
             mask_a = sample.coeff_ind_to_node_ind == edge[0].item()
             mask_b = sample.coeff_ind_to_node_ind == edge[1].item()
             edge_matrix = torch.zeros(
-                (self.basis_info.basis_dim_per_atom.max(), self.basis_info.basis_dim_per_atom.max()),
-                dtype=torch.float64
+                (
+                    self.basis_info.basis_dim_per_atom.max(),
+                    self.basis_info.basis_dim_per_atom.max(),
+                ),
+                dtype=torch.float64,
             )
-            edge_matrix[:sample.n_basis_per_atom[edge[0].item()], :sample.n_basis_per_atom[edge[1].item()]] = (
-                sample.message_passing_matrix[mask_a][:, mask_b]
-            )
+            edge_matrix[
+                : sample.n_basis_per_atom[edge[0].item()],
+                : sample.n_basis_per_atom[edge[1].item()],
+            ] = sample.message_passing_matrix[mask_a][:, mask_b]
             edge_matrices.append(edge_matrix)
         edge_matrices = torch.stack(edge_matrices, dim=0)
         sample.add_item(
@@ -150,7 +140,7 @@ class AddEdgeMatrices:
             Representation.NONE,
         )
         return sample
-    
+
 
 class AddRadiusEdgeIndex:
     def __init__(self, radius: float, name: str = "edge_index"):
@@ -207,7 +197,7 @@ def to_torch(
     func = partial(tensor_or_array_to_torch, device=device, float_dtype=float_dtype)
     apply_to_attributes(func, sample, keys)
     return sample
-    
+
 
 class ToTorch:
     """Convert all numpy arrays in the sample to torch tensors."""

@@ -1,14 +1,16 @@
-from pathlib import Path
 import bisect
 import pickle
-import numpy as np
-import lmdb
+from pathlib import Path
 
+import lmdb
+import numpy as np
 from torch.utils.data import Dataset
+
 from scdp.common.typing import assert_is_instance as aii
 
+
 class LmdbDataset(Dataset):
-    def __init__(self, path, transform = None):
+    def __init__(self, path, transform=None):
         super().__init__()
         self.path = path
         self.transform = transform
@@ -65,17 +67,13 @@ class LmdbDataset(Dataset):
 
             # Return features.
             datapoint_pickled = (
-                self.envs[db_idx]
-                .begin()
-                .get(f"{self._keys[db_idx][el_idx]}".encode("ascii"))
+                self.envs[db_idx].begin().get(f"{self._keys[db_idx][el_idx]}".encode("ascii"))
             )
 
             data_object = pickle.loads(datapoint_pickled)
             data_object.id = f"{db_idx}_{el_idx}"
         else:
-            datapoint_pickled = self.env.begin().get(
-                f"{self._keys[idx]}".encode("ascii")
-            )
+            datapoint_pickled = self.env.begin().get(f"{self._keys[idx]}".encode("ascii"))
             data_object = pickle.loads(datapoint_pickled)
 
         if self.transform:

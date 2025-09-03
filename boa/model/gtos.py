@@ -1,5 +1,6 @@
-from typing import Optional
 import math
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from e3nn import o3
@@ -12,21 +13,23 @@ from scdp.model.scn.smearing import GaussianSmearing
 EPSILON = 1e-8
 MAX_L = 10
 
+
 class RadialCorrection(nn.Module):
     """
     Radial correction for gaussian typed orbitals.
     """
+
     def __init__(self, channels):
         super(RadialCorrection, self).__init__()
         self.channels = channels
 
         self.radial_embedding = GaussianSmearing(
-                0.0,
-                3.0,
-                50,
-                1.0,
-            )
-        
+            0.0,
+            3.0,
+            50,
+            1.0,
+        )
+
         # mlp that takes radial embedding and outputs correction
         self.mlp = nn.Sequential(
             nn.Linear(50, 50),
@@ -42,10 +45,11 @@ class RadialCorrection(nn.Module):
         correction = self.mlp(radial)
         return correction
 
-    
+
 def well_tempered_basis_set():
     pass
-            
+
+
 def check_contraction(Ls, contraction):
     value_map = {}
     for a, b in zip(Ls, contraction):
@@ -54,6 +58,7 @@ def check_contraction(Ls, contraction):
         value_map[b.item()] = a.item()
     return True
 
+
 def get_contraction_idx(Ls, contraction):
     con_idx_map = {}
     con_idx = []
@@ -61,79 +66,90 @@ def get_contraction_idx(Ls, contraction):
     for i in range(len(Ls)):
         con = contraction[i].item()
         if con not in con_idx_map:
-            con_idx_map[con] = torch.arange(cur, cur + 2*Ls[i]+1)
-            cur += 2*Ls[i]+1
+            con_idx_map[con] = torch.arange(cur, cur + 2 * Ls[i] + 1)
+            cur += 2 * Ls[i] + 1
         con_idx.append(con_idx_map[con])
     con_idx = torch.cat(con_idx)
     return con_idx
-    
+
+
 @compile_mode("script")
 class GTOs(nn.Module):
     """
     Ensemble of gaussian typed orbitals.
     """
-    def __init__(self, 
-                 Ls: torch.Tensor, 
-                 coeffs: torch.Tensor, 
-                 expos: torch.Tensor, 
-                 contraction : Optional[torch.Tensor] = None,
-                 normalize: bool = True,
-                 cutoff: Optional[float] = None,
-                 use_radial_correction: bool = True
-                ):
+
+    def __init__(
+        self,
+        Ls: torch.Tensor,
+        coeffs: torch.Tensor,
+        expos: torch.Tensor,
+        contraction: Optional[torch.Tensor] = None,
+        normalize: bool = True,
+        cutoff: Optional[float] = None,
+        use_radial_correction: bool = True,
+    ):
         super(GTOs, self).__init__()
-        assert len(Ls) == len(coeffs) == len(expos), "<len(Ls)> must equal <len(coeffs)> and <len(expos)>."
+        assert len(Ls) == len(coeffs) == len(expos), (
+            "<len(Ls)> must equal <len(coeffs)> and <len(expos)>."
+        )
         if not isinstance(Ls, torch.Tensor):
             Ls = torch.tensor(Ls)
         if not isinstance(coeffs, torch.Tensor):
             coeffs = torch.tensor(coeffs, dtype=torch.float32)
         if not isinstance(expos, torch.Tensor):
             expos = torch.tensor(expos, dtype=torch.float32)
-        
-        self.register_buffer('Ls', Ls)
+
+        self.register_buffer("Ls", Ls)
         self.Lmax = self.Ls.max().item()
-        self.register_buffer('coeffs', coeffs)
-        self.register_buffer('expos', expos)
-        self.register_buffer('rad_idx', torch.repeat_interleave(torch.arange(len(Ls)), 2 * Ls + 1))
-        self.register_buffer('sph_idx', torch.cat([torch.arange(i**2, i**2 + 2*i+1) for i in Ls]))
+        self.register_buffer("coeffs", coeffs)
+        self.register_buffer("expos", expos)
+        self.register_buffer("rad_idx", torch.repeat_interleave(torch.arange(len(Ls)), 2 * Ls + 1))
+        self.register_buffer(
+            "sph_idx", torch.cat([torch.arange(i**2, i**2 + 2 * i + 1) for i in Ls])
+        )
 
         self.use_radial_correction = use_radial_correction
         if self.use_radial_correction:
             self.radial_correction = RadialCorrection(expos.shape[0])
-        
+
         # assumes Ls are sorted
-        self.n_orbitals_per_L = scatter(torch.ones_like(self.Ls), self.Ls, MAX_L+1)
-        self.outdim_per_L = self.n_orbitals_per_L * (2 * torch.arange(MAX_L+1) + 1)
-        self.irreps = o3.Irreps([(int(x), (l, 1)) for l, x in enumerate(self.n_orbitals_per_L) if x > 0])
-        
+        self.n_orbitals_per_L = scatter(torch.ones_like(self.Ls), self.Ls, MAX_L + 1)
+        self.outdim_per_L = self.n_orbitals_per_L * (2 * torch.arange(MAX_L + 1) + 1)
+        self.irreps = o3.Irreps(
+            [(int(x), (l, 1)) for l, x in enumerate(self.n_orbitals_per_L) if x > 0]
+        )
+
         if contraction is not None:
             if not isinstance(contraction, torch.Tensor):
                 contraction = torch.FloatTensor(contraction)
             assert len(self.Ls) == len(contraction), "<len(Ls)> must equal <len(contraction)>."
-            assert check_contraction(Ls, contraction), "cannot contract orbitals with different Ls."
+            assert check_contraction(Ls, contraction), (
+                "cannot contract orbitals with different Ls."
+            )
             self.contraction = contraction
-            self.register_buffer('con_idx', get_contraction_idx(Ls, contraction))
+            self.register_buffer("con_idx", get_contraction_idx(Ls, contraction))
             self.outdim = self.con_idx.max() + 1
         else:
             self.contraction = None
             self.outdim = torch.sum(2 * Ls + 1)
-            
+
         self.normalize = normalize
         if normalize:
             self.lognorm: torch.FloatTensor
-            self.register_buffer('lognorm', self._generate_lognorm().view(-1))
+            self.register_buffer("lognorm", self._generate_lognorm().view(-1))
 
         self.cutoff = cutoff
-        
+
     def _generate_lognorm(self, expos=None):
         if expos is None:
             expos = self.expos
-        power = (self.Ls + 1.5)
+        power = self.Ls + 1.5
         numerator = power * torch.log(2 * expos) + math.log(2)
         denominator = torch.special.gammaln(power)
         lognorm = (numerator - denominator) / 2
         return lognorm
-        
+
     def compute(self, vecs, expo_scaling=None, index_atom=None):
         # multiple r's will be the same here, so only calculate unique ones and index them later
         # first find the unique r's and the inverse index
@@ -141,40 +157,56 @@ class GTOs(nn.Module):
 
         r = vecs.norm(dim=-1, keepdim=True) + EPSILON
         spherical = o3.spherical_harmonics(
-            list(range(self.Lmax+1)), vecs,
-            normalize=True, normalization='norm'
-        ) # N x (Lmax + 1)^2
-                
+            list(range(self.Lmax + 1)), vecs, normalize=True, normalization="norm"
+        )  # N x (Lmax + 1)^2
+
         if expo_scaling is None:
             exponent = -self.expos * (r * r)
             normalization = torch.ones_like(r) * self.lognorm
         else:
             expos = self.expos.view(1, -1) * expo_scaling
-            exponent = -expos[index_atom] * (r * r)            
-            normalization =  self._generate_lognorm(expos)[index_atom]
+            exponent = -expos[index_atom] * (r * r)
+            normalization = self._generate_lognorm(expos)[index_atom]
         poly = self.Ls * torch.log(r)
         log = exponent + poly
-        
+
         if self.normalize:
-            radial = torch.exp(log + normalization) # * self.coeffs
+            radial = torch.exp(log + normalization)  # * self.coeffs
         else:
             radial = self.coeffs * torch.exp(log)
 
         if self.use_radial_correction:
-            radial = radial * (1 + self.radial_correction(r)) 
+            radial = radial * (1 + self.radial_correction(r))
 
         uncontracted = radial[:, self.rad_idx] * spherical[:, self.sph_idx]
         # Explicitly expand uncontracted to full size
         uncontracted_full = uncontracted[index]
         if self.contraction is not None:
-            contracted = torch.zeros([index.shape[0], self.con_idx.max() + 1], device=vecs.device, dtype=uncontracted.dtype)            
+            contracted = torch.zeros(
+                [index.shape[0], self.con_idx.max() + 1],
+                device=vecs.device,
+                dtype=uncontracted.dtype,
+            )
             contracted.scatter_add_(1, self.con_idx.repeat(index.shape[0], 1), uncontracted_full)
             return contracted
         else:
             return uncontracted_full
-        
-    def forward(self, probe_coords, atom_coords, n_probes, n_atoms,
-                coeffs=None, expo_scaling=None, reorder=True, pbc=False, cell=None, return_full=False, second_cutoff_atom_coords=None, mask=None):
+
+    def forward(
+        self,
+        probe_coords,
+        atom_coords,
+        n_probes,
+        n_atoms,
+        coeffs=None,
+        expo_scaling=None,
+        reorder=True,
+        pbc=False,
+        cell=None,
+        return_full=False,
+        second_cutoff_atom_coords=None,
+        mask=None,
+    ):
         """
         batched forward pass.
         probe_coords:  (n_total_probes, 3)
@@ -185,12 +217,16 @@ class GTOs(nn.Module):
         expo_scaling:  (n_total_atoms, n_orbitals)
         """
         if expo_scaling is not None:
-            assert expo_scaling.shape[1] == len(self.Ls), "expo_scaling must have the same number of orbitals as the basis."
-            # expo_scaling = expo_scaling[:, :len(self.Ls)]        
+            assert expo_scaling.shape[1] == len(self.Ls), (
+                "expo_scaling must have the same number of orbitals as the basis."
+            )
+            # expo_scaling = expo_scaling[:, :len(self.Ls)]
         if coeffs is not None:
-            assert coeffs.shape[1] == self.outdim, "coeffs must have the same number of orbitals as the basis."
+            assert coeffs.shape[1] == self.outdim, (
+                "coeffs must have the same number of orbitals as the basis."
+            )
             # coeffs = coeffs[:, :self.outdim]
-        
+
         device = probe_coords.device
         n_pairs = n_probes * n_atoms
         n_total_pairs = n_pairs.sum()
@@ -204,25 +240,34 @@ class GTOs(nn.Module):
         pair_count = torch.arange(n_total_pairs, device=device) - index_offset_pair
         n_atom_expand = torch.repeat_interleave(n_atoms, n_pairs)
 
-        index_probe = torch.div(pair_count, n_atom_expand, rounding_mode='trunc').long() + index_offset_p
+        index_probe = (
+            torch.div(pair_count, n_atom_expand, rounding_mode="trunc").long() + index_offset_p
+        )
         index_atom = (pair_count % n_atom_expand).long() + index_offset_a
         if pbc:
-            crossproducts = torch.cross(cell[:, [1,2,0]], cell[:, [2,0,1]], dim=-1)
+            crossproducts = torch.cross(cell[:, [1, 2, 0]], cell[:, [2, 0, 1]], dim=-1)
             cell_vol = torch.sum(cell[:, 0] * crossproducts[:, 0], dim=-1, keepdim=True)
-            n_rep = torch.ceil(
-                self.cutoff * torch.norm(crossproducts / cell_vol[:, None], p=2, dim=-1)
-                ).max(dim=0)[0].long()           
-            _rep = lambda dim: torch.arange(-n_rep[dim], n_rep[dim] + 1)
-            unit_cell = torch.tensor(
-                [(x, y, z) for x in _rep(0) for y in _rep(1) for z in _rep(2)]
-            ).to(cell.device).float()
+            n_rep = (
+                torch.ceil(
+                    self.cutoff * torch.norm(crossproducts / cell_vol[:, None], p=2, dim=-1)
+                )
+                .max(dim=0)[0]
+                .long()
+            )
+
+            def _rep(dim):
+                return torch.arange(-n_rep[dim], n_rep[dim] + 1)
+
+            unit_cell = (
+                torch.tensor([(x, y, z) for x in _rep(0) for y in _rep(1) for z in _rep(2)])
+                .to(cell.device)
+                .float()
+            )
             num_cells = len(unit_cell)
             unit_cell_batch = unit_cell.transpose(0, 1).unsqueeze(0).expand(len(cell), -1, -1)
             data_cell = torch.transpose(cell, 1, 2)
-            pbc_offsets = torch.bmm(data_cell, unit_cell_batch)    
-            pbc_offsets_per_pair = torch.repeat_interleave(
-                pbc_offsets, n_pairs, dim=0
-            )
+            pbc_offsets = torch.bmm(data_cell, unit_cell_batch)
+            pbc_offsets_per_pair = torch.repeat_interleave(pbc_offsets, n_pairs, dim=0)
             edge_atom_coords = atom_coords[index_atom].view(-1, 3, 1).expand(-1, -1, num_cells)
             edge_probe_coords = probe_coords[index_probe].view(-1, 3, 1).expand(-1, -1, num_cells)
             # num_pair -> num_pair x num_cells -> num_pair * num_cells
@@ -234,43 +279,48 @@ class GTOs(nn.Module):
             vecs = vecs.transpose(1, 2).flatten(0, 1)
         else:
             vecs = probe_coords[index_probe] - atom_coords[index_atom]
-        
+
         if self.cutoff is not None:
             if second_cutoff_atom_coords is None:
                 mask = vecs.norm(dim=-1) < self.cutoff
             else:
                 # second_cutoff_atom_coords: (n_total_atoms, 3)
-                second_cutoff_vecs = probe_coords[index_probe] - second_cutoff_atom_coords[index_atom]
-                mask = (vecs.norm(dim=-1) < self.cutoff) | (second_cutoff_vecs.norm(dim=-1) < self.cutoff)
-        
+                second_cutoff_vecs = (
+                    probe_coords[index_probe] - second_cutoff_atom_coords[index_atom]
+                )
+                mask = (vecs.norm(dim=-1) < self.cutoff) | (
+                    second_cutoff_vecs.norm(dim=-1) < self.cutoff
+                )
+
             index_probe = index_probe[mask]
             index_atom = index_atom[mask]
             vecs = vecs[mask]
-                
+
         if reorder:
-            vecs = vecs[..., [1,2,0]] # z, x, y (e3nn) -> x, y, z
-        vecs = vecs / bohr2ang # basis set length unit is a.u.
+            vecs = vecs[..., [1, 2, 0]]  # z, x, y (e3nn) -> x, y, z
+        vecs = vecs / bohr2ang  # basis set length unit is a.u.
 
         if coeffs is not None:
             # n_total_probes x 1
             if coeffs.dim() == 3:
-                vals = self.compute(vecs, expo_scaling, index_atom).unsqueeze(-1) * coeffs[index_atom]
+                vals = (
+                    self.compute(vecs, expo_scaling, index_atom).unsqueeze(-1) * coeffs[index_atom]
+                )
             else:
                 vals = self.compute(vecs, expo_scaling, index_atom) * coeffs[index_atom]
             if return_full:
                 return vals.sum(dim=1), index_probe, index_atom, mask
             else:
-                return scatter(
-                    vals.sum(dim=1), 
-                    index_probe, n_probes.sum()
-                )
+                return scatter(vals.sum(dim=1), index_probe, n_probes.sum())
         else:
             # n_total_pairs x outdim
-            return scatter(self.compute(vecs, expo_scaling, index_atom), index_probe, n_probes.sum())
-    
+            return scatter(
+                self.compute(vecs, expo_scaling, index_atom), index_probe, n_probes.sum()
+            )
+
     def __repr__(self):
         return (
-            f'{self.__class__.__name__}(Lmax={self.Lmax}, n_orbitals={len(self.Ls)}, '
-            f'n_contracted={len(self.Ls) if self.contraction is None else self.contraction.max() + 1}, '
-            f'outdim={self.outdim})'
+            f"{self.__class__.__name__}(Lmax={self.Lmax}, n_orbitals={len(self.Ls)}, "
+            f"n_contracted={len(self.Ls) if self.contraction is None else self.contraction.max() + 1}, "
+            f"outdim={self.outdim})"
         )

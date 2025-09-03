@@ -1,8 +1,9 @@
+from typing import List, Optional
 
-from typing import Optional, List
 from torch.utils.data import DataLoader
 
 from boa.data.of_batch import OFCollater
+
 
 class ProbeCollater(OFCollater):
     def __init__(self, follow_batch, exclude_keys, list_keys, n_probe=200):
