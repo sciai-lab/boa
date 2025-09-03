@@ -1,7 +1,7 @@
 _target_: scdp.data.datamodule.ProbeDataModule
 
 dataset:
-  _target_: scdp.data.dataset.GKCDataset
+  _target_: boa.data.dataset.GKCDataset
   path: /localscratch/mklockow/qm9_charge_density_gkc
 
 split_file: /export/scratch/ialgroup/charge_density/datasplits.json

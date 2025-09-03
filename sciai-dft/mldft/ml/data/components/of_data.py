@@ -1,6 +1,6 @@
 """Definition of the :class:`OFData` class, whose instances are the inputs to the model."""
 
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ from mldft.utils import RankedLogger
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-class StrEnumwithCheck(StrEnum):
+class StrEnumwithCheck(Enum):
     """Enum with a check if a value is in the enum."""
 
     @classmethod

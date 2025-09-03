@@ -15,26 +15,6 @@ from boa.model.gtos import MAX_L
 
 element_symbols_to_numbers = pyscf.data.elements.ELEMENTS_PROTON
 
-
-def move_batch_to_dtype(batch, dtype):
-    """
-    Move all tensors in the batch to the specified dtype, except for long and bool tensors.
-    """
-    for k in batch.keys:
-        v = batch[k]
-        if hasattr(v, "dtype") and v.dtype != torch.long and v.dtype != torch.bool:
-            batch[k] = v.to(dtype)
-    if hasattr(batch, "of_batch"):
-        of_batch = batch.of_batch
-        for k in of_batch.keys():
-            v = of_batch[k]
-            if hasattr(v, "dtype") and v.dtype != torch.long and v.dtype != torch.int and v.dtype != torch.bool:
-                of_batch[k] = v.to(dtype=dtype, device=batch.coords.device)
-            elif hasattr(v, "dtype"):
-                of_batch[k] = v.to(device=batch.coords.device)
-
-    return batch
-
 class ChgLightningModule(LightningModule):
     """
     Charge density prediction with the probe point method.
@@ -45,7 +25,6 @@ class ChgLightningModule(LightningModule):
         self.basis_info = instantiate(self.hparams.basis_info)
         self.abs_scale = self.hparams.abs_scale
         self.construct_orbitals()
-        num_neighbors = self.hparams.metadata["avg_num_neighbors"]
         self.model = instantiate(
             self.hparams.net, 
         )
@@ -62,49 +41,30 @@ class ChgLightningModule(LightningModule):
         # construct GTOs
         unique_atom_types = self.hparams.metadata['unique_atom_types']
 
-        if self.hparams.dft_wt_aug:
-            basis_dict_sym = self.basis_info.basis_dict
-            basis_dict = {element_symbols_to_numbers[sym]: v for sym, v in basis_dict_sym.items()}
-            basis_set = {anumber: basis_from_pyscf(basis_dict[anumber]) for anumber in unique_atom_types}
-        else:
-            basis_dict_sym = self.basis_info.basis_dict
-            basis_dict = {element_symbols_to_numbers[sym]: v for sym, v in basis_dict_sym.items()}
-            basis_set = {anumber: basis_from_pyscf(basis_dict[anumber]) for anumber in unique_atom_types}
-
-
-        vbasis = basis_set[self.hparams.vnode_elem]
-                    
-        if self.hparams.uncontracted:
-            for v in basis_set.values():
-                v['contraction'] = None
-            vbasis['contraction'] = None
+        basis_dict_sym = self.basis_info.basis_dict
+        basis_dict = {element_symbols_to_numbers[sym]: v for sym, v in basis_dict_sym.items()}
+        basis_set = {anumber: basis_from_pyscf(basis_dict[anumber]) for anumber in unique_atom_types}
             
         gto_dict = {}
         for elem in unique_atom_types:
             # atomic number 0 for virtual nodes.
-            if elem == 0:
-                gto_dict['0'] = GTOs(**vbasis, cutoff=self.hparams.orb_cutoff, use_radial_correction=self.hparams.train.model.use_radial_correction)
-            else:
-                gto_dict[str(elem)] = GTOs(**basis_set[elem], cutoff=self.hparams.orb_cutoff, use_radial_correction=self.hparams.train.model.use_radial_correction)
+            gto_dict[str(elem)] = GTOs(**basis_set[elem], cutoff=self.hparams.orb_cutoff, use_radial_correction=self.hparams.train.model.use_radial_correction)
         
         self.register_buffer('unique_atom_types', torch.tensor(unique_atom_types))
         self.register_buffer('n_Ls', torch.tensor([len(gto_dict[str(i)].Ls) for i in unique_atom_types]))
         self.register_buffer('n_orbitals', torch.tensor([gto_dict[str(i)].outdim for i in unique_atom_types]))
         self.gto_dict = torch.nn.ModuleDict(gto_dict)
         
-        if not self.hparams.uncontracted:
-            contract_dict = {}
-            for k, v in gto_dict.items():
-                gto = v
-                con_per_l = []
-                for l in range(MAX_L + 1):
-                    l_mask = gto.Ls == l
-                    num_contracted = (scatter(l_mask.to(dtype=torch.int64), torch.tensor(gto.contraction, dtype=torch.int64), int(gto.contraction.max().item())+1)).sum().item()
-                    num_contracted = num_contracted - torch.unique(gto.contraction[l_mask]).numel() 
-                    con_per_l.append(num_contracted)
-                contract_dict[k] = torch.tensor(con_per_l, dtype=torch.int64)
-        else:
-            contract_dict = {str(k): [0] * (self.Lmax + 1) for k in unique_atom_types}
+        contract_dict = {}
+        for k, v in gto_dict.items():
+            gto = v
+            con_per_l = []
+            for l in range(MAX_L + 1):
+                l_mask = gto.Ls == l
+                num_contracted = (scatter(l_mask.to(dtype=torch.int64), torch.tensor(gto.contraction, dtype=torch.int64), int(gto.contraction.max().item())+1)).sum().item()
+                num_contracted = num_contracted - torch.unique(gto.contraction[l_mask]).numel() 
+                con_per_l.append(num_contracted)
+            contract_dict[k] = torch.tensor(con_per_l, dtype=torch.int64)
 
         self.Lmax = max([gto.Lmax for gto in self.gto_dict.values()])
         self.max_n_Ls = max([len(gto.Ls) - contract_dict[k].sum() for k, gto in self.gto_dict.items()])
@@ -121,37 +81,7 @@ class ChgLightningModule(LightningModule):
         self.register_buffer('orb_index', orb_index)
         self.pbc = self.hparams.pbc
     
-    def predict_coeffs(self, batch):
-        """
-        predict coefficient for GTO basis functions.
-        """
-        coeffs, expo_scaling, edge_index = self.model(batch.of_batch)
-        
-        n_orbs = self.n_orbitals[
-            (batch.atom_types.repeat(len(self.unique_atom_types), 1).T == 
-             self.unique_atom_types).nonzero()[:, 1]]
-        batch_n_orbs = scatter(n_orbs, batch.batch, len(batch))
-
-        if coeffs.dim() == 3:
-            batch_n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
-            normalization = batch_n_orbs.repeat_interleave(
-                batch_n_edge).sqrt().view(-1, 1)
-            # inds = [0,1,2,3,4,5,6,7,9,10,11,12,13,14,15,16]
-            # # inds = [0,1,2,3,5,6,7,8]
-            # coeffs[..., inds]  = coeffs[..., inds] / normalization.unsqueeze(-1)
-            #coeffs = coeffs / normalization.unsqueeze(-1)
-        else:
-            normalization = batch_n_orbs.repeat_interleave(
-                batch.n_atom + batch.n_vnode).sqrt().view(-1, 1)
-            coeffs = coeffs / normalization 
-
-        if expo_scaling is not None:
-            # range from 0.5 to 2.0
-            expo_scaling = 1.5 / (1 + torch.exp(-expo_scaling + math.log(2))) + 0.5
-        
-        return coeffs, expo_scaling, edge_index
-    
-    def orbital_inference(self, batch, coeffs, expo_scaling, n_probe, probe_coords, edge_index):
+    def orbital_inference(self, batch, coeffs, n_probe, probe_coords, edge_index):
         """
         Compute chg values at given probe points using <coeffs>.
         Inputs:
@@ -162,7 +92,7 @@ class ChgLightningModule(LightningModule):
         Outputs:
             - orbitals: chg values at probe points, (M,)
         """
-        unique_atom_types = torch.unique(batch.atom_types)
+        unique_atom_types = torch.unique(batch.atomic_numbers)
         
         batch_perm = torch.argsort(batch.batch[edge_index[0]])
         edge_index = edge_index[:, batch_perm]
@@ -191,24 +121,24 @@ class ChgLightningModule(LightningModule):
         for i in unique_atom_types:
             n_edge = scatter(torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch))
             n_edge_i = scatter(
-                (batch.atom_types[edge_index[0]] == i).long(),
-                torch.arange(len(batch), device=batch.atom_types.device).repeat_interleave(
+                (batch.atomic_numbers[edge_index[0]] == i).long(),
+                torch.arange(len(batch), device=batch.atomic_numbers.device).repeat_interleave(
                 n_edge), len(batch)
             )
             orb_index = self.orb_index[i.item()]
             
             edge_pred, index_probe, index_edge, _ = self.gto_dict[str(i.item())](
                 probe_coords=probe_coords, 
-                atom_coords=batch.coords[edge_index[0, batch.atom_types[edge_index[0]] == i]],
+                atom_coords=batch.pos[edge_index[0, batch.atomic_numbers[edge_index[0]] == i]],
                 n_probes=n_probe,
                 n_atoms=n_edge_i,
-                coeffs=coeffs[batch.atom_types[edge_index[0]] == i][:, orb_index],
+                coeffs=coeffs[batch.atomic_numbers[edge_index[0]] == i][:, orb_index],
                 expo_scaling=None,
                 pbc=self.pbc, cell=batch.cell, return_full=True,
-                second_cutoff_atom_coords=batch.coords[edge_index[1, batch.atom_types[edge_index[0]] == i]],
+                second_cutoff_atom_coords=batch.pos[edge_index[1, batch.atomic_numbers[edge_index[0]] == i]],
             )
 
-            current_indices = torch.where(batch.atom_types[edge_index[0]] == i)[0]
+            current_indices = torch.where(batch.atomic_numbers[edge_index[0]] == i)[0]
             global_index_edge = current_indices[index_edge]
             edge_preds.append(edge_pred)
             index_edges.append(global_index_edge)
@@ -244,9 +174,8 @@ class ChgLightningModule(LightningModule):
     
     def forward(self, batch):
         # move everything to dtype that is not long 
-        batch = move_batch_to_dtype(batch, self.dtype)
-        coeffs, expo_scaling, edge_index = self.predict_coeffs(batch)
-        pred = self.orbital_inference(batch, coeffs, expo_scaling, batch.n_probe, batch.probe_coords, edge_index=edge_index)        
+        coeffs, edge_index = self.model(batch)
+        pred = self.orbital_inference(batch, coeffs, batch.n_probe, batch.probe_coords, edge_index=edge_index)        
         
         target = batch.chg_labels
         if self.hparams.criterion == 'mse':
@@ -254,10 +183,10 @@ class ChgLightningModule(LightningModule):
         else:
             loss = (pred / self.scale - target / self.scale).abs().mean()
             
-        return loss, pred, batch.chg_labels, coeffs, expo_scaling
+        return loss, pred, batch.chg_labels, coeffs
     
     def training_step(self, batch, batch_idx):
-        loss, pred, target, coeffs, scaling = self(batch)
+        loss, pred, target, coeffs = self(batch)
         self.log_dict({
             "loss/train": loss,
             }, 
@@ -265,7 +194,7 @@ class ChgLightningModule(LightningModule):
             sync_dist=self.distributed
         )  
 
-        if batch_idx % 10 == 0:
+        if batch_idx % self.hparams.train.log_train_nmape_interval == 0:
             nmape = get_nmape(
                 pred, target, 
                 torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe)
@@ -277,18 +206,10 @@ class ChgLightningModule(LightningModule):
             sync_dist=self.distributed
             )
 
-        if scaling is not None:
-            self.log_dict({
-                "trainer/scaling_mean": scaling.mean(),
-                "trainer/scaling_std": scaling.std()
-                }, 
-                batch_size=batch["cell"].shape[0], 
-                sync_dist=self.distributed
-            )
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, pred, target, _, _ = self(batch)
+        loss, pred, target, _ = self(batch)
         nmape = get_nmape(
             pred, target, 
             torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe)
@@ -303,7 +224,7 @@ class ChgLightningModule(LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        loss, pred, target, _, _ = self(batch)
+        loss, pred, target, _ = self(batch)
         nmape = get_nmape(
             pred, target, 
             torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe)

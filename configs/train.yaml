@@ -43,3 +43,8 @@ restore:
 monitor:
   metric: 'loss/val'
   mode: 'min'
+
+log_train_nmape_interval: 10
+
+ckpt_path: null
+weight_ckpt_path: null

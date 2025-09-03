@@ -1,12 +1,9 @@
+defaults:
+  - dataset: default
+
 _target_: boa.data.datamodule.ProbeDataModule
 
-dataset:
-  _target_: scdp.data.dataset.LmdbDataset
-  path: /export/scratch/mklockow/charge_density_lmdb/
-
 split_file: /export/scratch/ialgroup/charge_density/datasplits.json
-
-basis_info: ${model.basis_info}
 
 num_workers: 
   train: 8
@@ -16,7 +13,12 @@ batch_size:
   train: 12
   val: 12
   test: 12
+
 n_probe:
-  train: 5000 
-  val: 6500
-  test: 6500
+  train: 5000
+  val: ${data.n_probe.train}
+  test: ${data.n_probe.train}
+
+dataloader_kwargs:
+  follow_batch: ["coeffs", "atomic_numbers"]
+  list_keys: []

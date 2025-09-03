@@ -10,7 +10,7 @@ import pyscf
 
 numbers_to_element_symbols = pyscf.data.elements.ELEMENTS
 
-from boa.data.of_data import get_coulomb_matrix, get_overlap_matrix
+from mldft.ofdft.basis_integrals import get_coulomb_matrix, get_overlap_matrix
 
 
 class InverseMultAtom(nn.Module):
