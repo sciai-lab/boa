@@ -109,7 +109,7 @@ class ReducedEdgeEmbedding(nn.Module):
         edge_features_a[edge_index[0] == edge_index[1]] = node_features_a
         edge_features_b[edge_index[0] == edge_index[1]] = node_features_b
 
-        return torch.cat([edge_features_a, edge_features_b], dim=-1), None, edge_index
+        return torch.cat([edge_features_a, edge_features_b], dim=-1), edge_index
 
 
 class BOA(nn.Module):
@@ -169,5 +169,5 @@ class BOA(nn.Module):
         init_guess_edge_a, init_guess_edge_b = init_guess_edge[..., 0][..., None], init_guess_edge[..., 1][..., None]
         init_guess_delta = torch.cat([edge_features_a, init_guess_edge_a, edge_features_b, init_guess_edge_b], dim=-1)
 
-        return init_guess_delta, None, full_edge_index
+        return init_guess_delta, full_edge_index
 

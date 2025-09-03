@@ -132,24 +132,15 @@ def run(cfg: DictConfig) -> str:
     with open(Path(storage_dir) / "metadata.json", "w") as f:
         json.dump(metadata, f)
     
-    if (Path(storage_dir) / 'last.ckpt').exists():
-        ckpt = Path(storage_dir) / 'last.ckpt'
-        pylogger.info(f"found checkpoint: {ckpt}")
-    else:
-        import numpy as np
-        ckpts = list(Path(storage_dir).glob("*epoch*.ckpt"))
-        if len(ckpts) > 0:
-            ckpt_epochs = np.array(
-                [int(ckpt.parts[-1].split("-")[0].split("=")[1]) for ckpt in ckpts]
-            )
-            ckpt_ix = ckpt_epochs.argsort()[-1]
-            ckpt = str(ckpts[ckpt_ix])
-        else:
-            ckpt = None
-    
-    if cfg.model.expo_trainable:
-        model.load_state_dict(torch.load(ckpt)["state_dict"], strict=False)
-        ckpt = None
+    assert not (cfg.ckpt_path and cfg.weight_ckpt_path), "Only one of `ckpt_path` or `weight_ckpt_path` can be provided."
+    if cfg.ckpt_path:
+        ckpt = cfg.ckpt_path
+        pylogger.info(f"Using checkpoint: {ckpt}")
+    elif cfg.weight_ckpt_path:
+        # load state dict of model
+        state = torch.load(cfg.weight_ckpt_path, map_location="cpu", weights_only=False)["state_dict"]
+        model.load_state_dict(state, strict=False)
+        pylogger.info(f"Loaded model weights from: {cfg.weight_ckpt_path}")
 
     if cfg.initial_guess_pre_training_steps > 0:
         pre_cfg = cfg.copy()
