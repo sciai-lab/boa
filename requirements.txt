@@ -35,3 +35,5 @@ mp-pyrho==0.3.0
 ipdb==0.13.13
 rich
 pytest
+pre-commit
+ruff

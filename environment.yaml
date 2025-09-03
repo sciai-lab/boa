@@ -59,6 +59,8 @@ dependencies:
       - e3nn==0.5.6
       - tensorboard
       - torch_geometric
+      - pre-commit
+      - ruff
   # The following are optional loggers, uncomment as needed:
   # - wandb
   # - neptune-client
