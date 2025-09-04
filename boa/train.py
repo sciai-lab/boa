@@ -157,8 +157,13 @@ def run(cfg: DictConfig) -> str:
             metadata=metadata,
         )
 
+        pre_cfg.logger.tensorboard.save_dir = (
+            pre_cfg.logger.tensorboard.save_dir[:-1] + "_pre_training/"
+        )
+        pre_logger = TensorBoardLogger(**pre_cfg.logger.tensorboard)
+
         pre_trainer = pl.Trainer(
-            logger=logger,
+            logger=pre_logger,
             **pre_cfg.trainer,
         )
 
