@@ -231,7 +231,6 @@ class ChgLightningModule(LightningModule):
             / self.abs_scale
         )
 
-        # pred = (edge_preds*edge_preds[perm]).sum(dim=-1)
         pred = scatter(
             ((edge_preds_a[inverse_perm_a]) * (edge_preds_b[inverse_perm_b])).sum(dim=-1),
             index_probes[inverse_perm_a],

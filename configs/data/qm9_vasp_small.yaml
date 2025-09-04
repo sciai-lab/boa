@@ -1,0 +1,4 @@
+defaults:
+  - datamodule: qm9_vasp_small
+
+dataset_name: qm9_vasp

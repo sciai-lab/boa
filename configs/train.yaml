@@ -1,5 +1,5 @@
 defaults:
-  - data: qm9_small
+  - data: qm9_vasp_small
   - model: qm9
   - paths: default
   - hydra: default
@@ -23,8 +23,10 @@ pre_training_overrides:
   model:
     use_radial_correction: false
   data:
-    n_probe:
-      train: 48000
+    datamodule:
+      n_probe:
+        train: 48000
+
 pre_training_replacements:
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts

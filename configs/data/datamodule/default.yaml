@@ -1,0 +1,9 @@
+split_file: ${paths.data_dir}/${data.dataset_name}/datasplits.json
+
+dataloader_kwargs:
+  follow_batch: ["coeffs", "atomic_numbers"]
+  list_keys: []
+
+n_probe:
+  val: ${data.datamodule.n_probe.train}
+  test: ${data.datamodule.n_probe.train}

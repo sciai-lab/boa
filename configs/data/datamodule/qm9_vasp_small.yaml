@@ -1,0 +1,15 @@
+defaults:
+  - qm9_vasp
+
+num_workers: 
+  train: 8
+  val: 8
+  test: 8
+batch_size: 
+  train: 12
+  val: 12
+  test: 12
+
+n_probe:
+  train: 5000
+  

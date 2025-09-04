@@ -74,8 +74,10 @@ def run(cfg: DictConfig) -> str:
         seed_everything(cfg.seed)
 
     # Instantiate datamodule
-    pylogger.info(f"Instantiating <{cfg.data['_target_']}>")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data, _recursive_=False)
+    pylogger.info(f"Instantiating <{cfg.data.datamodule['_target_']}>")
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(
+        cfg.data.datamodule, _recursive_=False
+    )
     datamodule.setup(stage="fit")
 
     metadata = getattr(datamodule, "metadata", None)
@@ -148,15 +150,17 @@ def run(cfg: DictConfig) -> str:
             if "pre_training_overrides" in cfg:
                 pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
                 # pretty print the new pre_cfg
-                pylogger.info(f"Pre-training config:\n{omegaconf.OmegaConf.to_yaml(pre_cfg)}")
+                pylogger.info(
+                    f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
+                )
             if "pre_training_replacements" in cfg:
                 for key, value in cfg.pre_training_replacements.items():
                     pre_cfg[key] = value
                 pylogger.info(
-                    f"Pre-training config with replacements:\n{omegaconf.OmegaConf.to_yaml(pre_cfg)}"
+                    f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
                 )
 
-        pre_datamodule = hydra.utils.instantiate(pre_cfg.data, _recursive_=False)
+        pre_datamodule = hydra.utils.instantiate(pre_cfg.data.datamodule, _recursive_=False)
         pre_datamodule.setup(stage="fit")
 
         pre_metadata = getattr(pre_datamodule, "metadata", None)

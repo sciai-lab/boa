@@ -1,7 +1,7 @@
 _target_: boa.data.transforms.MasterTransform
 transforms:
   - _target_: boa.data.transforms.SampleProbe
-    n_probe: ${data.n_probe.train}
+    n_probe: ${data.datamodule.n_probe.train}
 
   - _target_: boa.data.transforms.ConvertToOFData
     basis_info: ${model.basis_info}

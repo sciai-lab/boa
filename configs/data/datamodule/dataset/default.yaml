@@ -2,4 +2,4 @@ defaults:
   - transform: default
 
 _target_: boa.data.dataset.LmdbDataset
-path: /export/scratch/mklockow/charge_density_lmdb/
+path: ${paths.data_dir}/${data.dataset_name}/data
