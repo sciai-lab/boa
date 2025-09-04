@@ -16,11 +16,8 @@ uv pip install -e scdp/ -e sciai-dft/ -e .
 ```
 
 ## Environment Variables
+Fill .env with following lines to set environment variables:
 ```bash
-export BOA_DATA="/export/scratch/mklockow/charge_density_lmdb"
-export BOA_MODELS="."
-```
-Quick fix for project root
-```bash
-touch .env
+BOA_DATA="/export/scratch/mklockow/charge_density_lmdb"
+BOA_MODELS="."
 ```
