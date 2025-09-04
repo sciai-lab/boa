@@ -1,0 +1,17 @@
+# Hydra configuration for SLURM execution with submitit
+# Use this configuration when running on SLURM clusters
+
+defaults:
+  - default
+  - launcher: submitit_slurm
+
+# Override output directories for SLURM runs
+run:
+  dir: ${paths.log_dir}/${task_name}/slurm_runs/${dir_counter:${paths.log_dir}/${task_name}/slurm_runs,3}_${name}_${smart_override_dirname:${hydra.job.override_dirname}}
+
+sweep:
+  dir: ${paths.log_dir}/${task_name}/slurm_multiruns/${hydra.sweeper.study_name}
+  subdir: ${dir_counter:${.dir},3}_${smart_override_dirname:${hydra.job.override_dirname}}
+
+# Enable verbose mode for SLURM debugging
+verbose: true
