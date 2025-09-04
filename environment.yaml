@@ -46,6 +46,7 @@ dependencies:
 
   - pip:
       - --extra-index-url=https://download.pytorch.org/whl/cu126
+      - --find-links https://data.pyg.org/whl/torch-2.8.0+cu126.html
       - torch_ema==0.3
       - mp-pyrho==0.3.0
       - hydra-optuna-sweeper
