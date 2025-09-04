@@ -7,6 +7,7 @@ from torch_geometric.utils import to_dense_batch
 
 from boa.data.basis_info import BasisInfo
 from boa.model.net.boa_block_stack import BoaBlockStack
+from scdp.model.scn.smearing import GaussianSmearing
 
 numbers_to_element_symbols = pyscf.data.elements.ELEMENTS
 
@@ -252,6 +253,66 @@ class EdgeEmbeddingV2(nn.Module):
         out_features_b[self_loop_mask] = edge_features_b[self_loop_mask] + node_cor_b
 
         return torch.cat([out_features_a, out_features_b], dim=-1), edge_index
+
+
+class EdgeDistanceEmbedding(nn.Module):
+    def __init__(
+        self,
+        basis_info: BasisInfo,
+        channels: int = 32,
+        n_embeddings: int = 5,
+        num_gaussians: int = 32,
+    ):
+        super().__init__()
+        self.basis_info = basis_info
+        self.channels = channels
+        self.n_embeddings = n_embeddings
+
+        # one EdgeEmbedding for n_embeddings
+        self.edge_embedding = EdgeEmbedding(basis_info, channels=channels * n_embeddings)
+
+        self.gaussian_smearing = GaussianSmearing(
+            0.0,
+            3.0,
+            num_gaussians,
+            1.0,
+        )
+
+        self.distance_mlp_a = torch.nn.Sequential(
+            nn.Linear(num_gaussians, num_gaussians),
+            nn.SiLU(),
+            nn.Linear(num_gaussians, n_embeddings),
+        )
+        self.distance_mlp_b = torch.nn.Sequential(
+            nn.Linear(num_gaussians, num_gaussians),
+            nn.SiLU(),
+            nn.Linear(num_gaussians, n_embeddings),
+        )
+
+    def forward(self, batch) -> Tensor:
+        coords = batch.pos
+        edge_index = batch.edge_index
+
+        distances = torch.norm(coords[edge_index[0]] - coords[edge_index[1]], dim=-1)
+        distance_embedding = self.gaussian_smearing(distances)
+        distance_factors_a = self.distance_mlp_a(distance_embedding)
+        distance_factors_b = self.distance_mlp_b(distance_embedding)
+        edge_features = self.edge_embedding(batch)[0]
+        edge_features_a, edge_features_b = (
+            edge_features[..., : self.channels * self.n_embeddings],
+            edge_features[..., self.channels * self.n_embeddings :],
+        )
+        edge_features_a = edge_features_a.view(
+            edge_features_a.shape[0], edge_features_a.shape[1], self.channels, self.n_embeddings
+        )
+        edge_features_b = edge_features_b.view(
+            edge_features_b.shape[0], edge_features_b.shape[1], self.channels, self.n_embeddings
+        )
+        edge_features_a = edge_features_a * distance_factors_a[:, None, None, :]
+        edge_features_b = edge_features_b * distance_factors_b[:, None, None, :]
+        edge_features_a = torch.sum(edge_features_a, dim=-1)  # sum over the n_embeddings dimension
+        edge_features_b = torch.sum(edge_features_b, dim=-1)  # sum over the n_embeddings dimension
+        return torch.cat([edge_features_a, edge_features_b], dim=-1), edge_index
 
 
 class BOA(nn.Module):
