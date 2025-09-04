@@ -145,16 +145,31 @@ def run(cfg: DictConfig) -> str:
         pre_cfg = cfg.copy()
         with open_dict(pre_cfg.model):
             pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
-            pre_cfg.optim.lr = 1e-2
-            pre_cfg.lr_scheduler.T_max = cfg.initial_guess_pre_training_steps
-            pre_cfg.trainer.max_steps = cfg.initial_guess_pre_training_steps
-            pre_cfg.model.use_radial_correction = False
+            if "pre_training_overrides" in cfg:
+                pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
+                # pretty print the new pre_cfg
+                pylogger.info(f"Pre-training config:\n{omegaconf.OmegaConf.to_yaml(pre_cfg)}")
+            if "pre_training_replacements" in cfg:
+                for key, value in cfg.pre_training_replacements.items():
+                    pre_cfg[key] = value
+                pylogger.info(
+                    f"Pre-training config with replacements:\n{omegaconf.OmegaConf.to_yaml(pre_cfg)}"
+                )
+
+        pre_datamodule = hydra.utils.instantiate(pre_cfg.data, _recursive_=False)
+        pre_datamodule.setup(stage="fit")
+
+        pre_metadata = getattr(pre_datamodule, "metadata", None)
+        if pre_metadata is None:
+            pylogger.warning(
+                f"No 'metadata' attribute found in datamodule <{pre_datamodule.__class__.__name__}>"
+            )
 
         pre_model = hydra.utils.instantiate(
             pre_cfg.model,
             train=pre_cfg,
             _recursive_=False,
-            metadata=metadata,
+            metadata=pre_metadata,
         )
 
         pre_cfg.logger.tensorboard.save_dir = (
@@ -166,8 +181,9 @@ def run(cfg: DictConfig) -> str:
             logger=pre_logger,
             **pre_cfg.trainer,
         )
-
-        pre_trainer.fit(pre_model, datamodule.train_dataloader(), datamodule.val_dataloader())
+        pre_trainer.fit(
+            pre_model, pre_datamodule.train_dataloader(), pre_datamodule.val_dataloader()
+        )
 
         model.model.initial_guess_module.load_state_dict(pre_model.model.state_dict())
 

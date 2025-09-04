@@ -10,18 +10,26 @@ defaults:
   - logger: tensorboard
   - _self_
 
-# metadata specialised for each experiment
-# core:
-#   expname: debug
-#   project_name: scdp
-#   storage_dir: ${core.expname}
-#   version: 0.0.1
-#   tags: null
-name: debug
+name: qm9_small
 
 task_name: train
 
 initial_guess_pre_training_steps: 1000
+pre_training_overrides:
+  optim:
+    lr: 0.01
+  trainer:
+    max_steps: ${initial_guess_pre_training_steps}
+  model:
+    use_radial_correction: false
+  data:
+    n_probe:
+      train: 48000
+pre_training_replacements:
+  lr_scheduler:
+    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+    T_0: 250
+    T_mult: 1
 
 conventions:
   x_key: 'x'
