@@ -1,0 +1,8 @@
+defaults:
+  - transform: md
+
+_target_: boa.data.dataset.SmallDensityDataset
+_partial_: true
+root: ${paths.data_dir}/${data.dataset_name}/data
+basis_info: ${model.basis_info}
+n_probe: ${data.datamodule.n_probe.train}

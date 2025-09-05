@@ -1,7 +1,7 @@
 defaults:
-  - datamodule: qm9_vasp
+  - datamodule: qm9_pyscf
 
-dataset_name: qm9_vasp
+dataset_name: qm9_pyscf
 
 basis_info: 
   _target_: boa.data.basis_info.BasisInfo.from_atomic_numbers_with_even_tempered_basis

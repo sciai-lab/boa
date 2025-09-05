@@ -22,6 +22,7 @@ class ChgLightningModule(LightningModule):
         self.save_hyperparameters()
         self.basis_info = instantiate(self.hparams.basis_info)
         self.abs_scale = self.hparams.abs_scale
+        self.use_abs = self.hparams.use_abs
         self.construct_orbitals()
         self.model = instantiate(
             self.hparams.net,
@@ -41,6 +42,7 @@ class ChgLightningModule(LightningModule):
     def construct_orbitals(self):
         # construct GTOs
         unique_atom_types = self.hparams.metadata["unique_atom_types"]
+        print(f"Unique atom types: {unique_atom_types}")
 
         basis_dict_sym = self.basis_info.basis_dict
         basis_dict = {element_symbols_to_numbers[sym]: v for sym, v in basis_dict_sym.items()}
@@ -224,12 +226,13 @@ class ChgLightningModule(LightningModule):
         )
 
         # use a smooth L1loss instead of abs
-        edge_preds_a = (
-            torch.nn.functional.smooth_l1_loss(
-                edge_preds_a * self.abs_scale, torch.zeros_like(edge_preds_a), reduction="none"
+        if self.use_abs:
+            edge_preds_a = (
+                torch.nn.functional.smooth_l1_loss(
+                    edge_preds_a * self.abs_scale, torch.zeros_like(edge_preds_a), reduction="none"
+                )
+                / self.abs_scale
             )
-            / self.abs_scale
-        )
 
         pred = scatter(
             ((edge_preds_a[inverse_perm_a]) * (edge_preds_b[inverse_perm_b])).sum(dim=-1),

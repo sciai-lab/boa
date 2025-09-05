@@ -1,6 +1,6 @@
 defaults:
   - data: qm9_vasp_small
-  - model: qm9
+  - model: boa
   - paths: default
   - hydra: default
   - trainer: default
@@ -9,6 +9,7 @@ defaults:
   - callbacks: default
   - logger: tensorboard
   - _self_
+  - experiment: null
   - debug: null
 
 name: qm9_small
@@ -18,7 +19,7 @@ task_name: train
 initial_guess_pre_training_steps: 1000
 pre_training_overrides:
   optim:
-    lr: 0.01
+    lr: 0.1
   trainer:
     max_steps: ${initial_guess_pre_training_steps}
   model:

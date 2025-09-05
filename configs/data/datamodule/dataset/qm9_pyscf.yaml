@@ -1,0 +1,5 @@
+defaults:
+  - transform: default
+
+_target_: boa.data.dataset.PyscfDataset
+path: ${paths.data_dir}/${data.dataset_name}/data
