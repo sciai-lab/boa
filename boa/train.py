@@ -1,22 +1,16 @@
-import json
 import logging
 from pathlib import Path
 from typing import List
 
 import hydra
-import lightning.pytorch as pl
 import omegaconf
 import rootutils
-import torch
-from lightning.pytorch import Callback, seed_everything
-from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig, ListConfig, open_dict
 
 # this import registers custom omegaconf resolvers
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 import boa.utils.omegaconf_resolvers  # noqa E402
-from scdp.common.system import PROJECT_ROOT, log_hyperparameters  # noqa E402
 
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH
@@ -33,12 +27,10 @@ from scdp.common.system import PROJECT_ROOT, log_hyperparameters  # noqa E402
 #
 # more info: https://github.com/ashleve/rootutils
 # ------------------------------------------------------------------------------------ #
-
-torch.multiprocessing.set_sharing_strategy("file_system")
 pylogger = logging.getLogger(__name__)
 
 
-def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
+def build_callbacks(cfg: ListConfig, *args) -> List:
     """Instantiate the callbacks given their configuration.
 
     Args:
@@ -48,7 +40,7 @@ def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
     Returns:
         the complete list of callbacks to use
     """
-    callbacks: List[Callback] = list(args)
+    callbacks: List = list(args)
 
     for callback in cfg:
         pylogger.info(f"Adding callback <{callback['_target_'].split('.')[-1]}>")
@@ -66,7 +58,36 @@ def run(cfg: DictConfig) -> str:
     Returns:
         the run directory inside the storage_dir used by the current experiment
     """
+    import json
 
+    import lightning.pytorch as pl
+    import torch
+    from lightning.pytorch import Callback, seed_everything
+    from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
+
+    from scdp.common.system import log_hyperparameters  # noqa E402
+
+    torch.multiprocessing.set_sharing_strategy("file_system")
+
+    # ------------------------------------------------------------------------------------ #
+    # the setup_root above is equivalent to:
+    # - adding project root dir to PYTHONPATH
+    #       (so you don't need to force user to install project as a package)
+    #       (necessary before importing any local modules e.g. `from src import utils`)
+    # - setting up PROJECT_ROOT environment variable
+    #       (which is used as a base for paths in "configs/paths/config.yaml")
+    #       (this way all filepaths are the same no matter where you run the code)
+    # - loading environment variables from ".env" in root dir
+    #
+    # you can remove it if you:
+    # 1. either install project as a package or move entry files to project root dir
+    # 2. set `root_dir` to "." in "configs/paths/config.yaml"
+    #
+    # more info: https://github.com/ashleve/rootutils
+    # ------------------------------------------------------------------------------------ #
+
+    torch.multiprocessing.set_sharing_strategy("file_system")
+    pylogger = logging.getLogger(__name__)
     if cfg.deterministic:
         seed_everything(cfg.seed)
 
@@ -194,7 +215,11 @@ def run(cfg: DictConfig) -> str:
         logger.experiment.finish()
 
 
-@hydra.main(config_path=str(PROJECT_ROOT / "configs"), config_name="train", version_base="1.3")
+@hydra.main(
+    config_path=str(Path(__file__).parent.parent / "configs"),
+    config_name="train",
+    version_base="1.3",
+)
 def main(cfg: omegaconf.DictConfig):
     run(cfg)
 
