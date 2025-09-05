@@ -6,10 +6,12 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --signal=SIGUSR1@300
 #SBATCH --time=72:00:00
+#SBATCH --output=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
+#SBATCH --error=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
 #SBATCH --open-mode=append
 #SBATCH --export=NONE
 
-source ~/.bashrc
+# source ~/.bashrc
 module purge
 
 # Ensure extraction directory exists
@@ -21,4 +23,4 @@ export BOA_DATA=$TMPDIR
 export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models
 cd ~/boa/
 source .venv/bin/activate
-srun python boa/train.py experiment=qm9_vasp_small trainer=slurm
+srun --export=ALL python -u boa/train.py experiment=qm9_vasp_small trainer=slurm

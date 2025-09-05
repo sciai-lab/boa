@@ -4,3 +4,5 @@ defaults:
   - qm9_vasp_small
   - override /trainer: slurm
   - override /hydra: slurm
+
+name: qm9_vasp_small

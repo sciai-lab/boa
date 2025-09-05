@@ -4,3 +4,5 @@ defaults:
   - ethane
   - override /trainer: slurm
   - override /hydra: slurm
+
+name: ethane

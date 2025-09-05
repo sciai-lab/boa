@@ -4,3 +4,5 @@ defaults:
   - ethanol
   - override /trainer: slurm
   - override /hydra: slurm
+
+name: ethanol
