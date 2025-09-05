@@ -63,6 +63,7 @@ dependencies:
       - pre-commit
       - ruff
       - setuptools<80.9
+      - gitpython
   # The following are optional loggers, uncomment as needed:
   # - wandb
   # - neptune-client

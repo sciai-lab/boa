@@ -1,0 +1,6 @@
+# @package _global_
+
+defaults:
+  - qm9_vasp
+  - override /trainer: slurm
+  - override /hydra: slurm

@@ -1,18 +1,24 @@
 #!/bin/bash
-#SBATCH --partition=gpu_h100        # Partition (choose from devel, single, cpu-mult, gpu-multi; more info at https://wiki.bwhpc.de/e/Helix/Slurm)
-#SBATCH --nodes=1                   # Number of nodes, must match trainer.nodes
-#SBATCH --gres=gpu:1                # Number of GPUs, must match trainer.devices
-#SBATCH --ntasks-per-node=1         # Number of tasks per node, must match trainer.devices
-#SBATCH --cpus-per-task=16           # Number of CPUs per task, must match data.datamodule.num_workers
-#SBATCH --signal=SIGUSR1@300        # Signal to send to the job on timeout. This is handled by lightning and will save a checkpoint and resubmit the job to continue from that checkpoint.
-#SBATCH --time=72:00:00             # Maximum runtime in HH:MM:SS
-#SBATCH --open-mode=append          # Append to the output file (if it already exists). This is useful for resuming from checkpoints.
+#SBATCH --partition=gpu_h100
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --signal=SIGUSR1@300
+#SBATCH --time=72:00:00
+#SBATCH --open-mode=append
 #SBATCH --export=NONE
 
 source ~/.bashrc
 module purge
 
+# Ensure extraction directory exists
+mkdir -p $TMPDIR
+# Decompress and extract to $TMPDIR
+zstd --decompress -T0 /pfs/work9/workspace/scratch/hd_ai306-dft_data/data/qm9_vasp.tar.zst | tar --extract --file - -C $TMPDIR/
+
+export BOA_DATA=$TMPDIR
+export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models
 cd ~/boa/
 source .venv/bin/activate
-srun python boa/train.py trainer=slurm
-
+srun python boa/train.py experiment=qm9_vasp_small trainer=slurm

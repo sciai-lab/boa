@@ -1,22 +1,7 @@
 defaults:
   - default
 
-_target_: lightning.pytorch.trainer.Trainer
-
-default_root_dir: ${paths.output_dir}
-
-# Distributed training settings for SLURM
-strategy: auto
 devices: 1
-accelerator: 'gpu'
-precision: 32
-max_epochs: 100000
-max_steps: 500000
-num_sanity_val_steps: 2
-gradient_clip_val: 0.5
-val_check_interval: 1.0
-deterministic: False  # Disable deterministic mode for SLURM to avoid cloudpickle issues
-
 
 plugins:
   _target_: lightning.pytorch.plugins.environments.SLURMEnvironment

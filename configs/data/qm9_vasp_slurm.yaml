@@ -1,5 +1,0 @@
-# Data configuration for SLURM runs
-defaults:
-  - datamodule: qm9_vasp_slurm
-
-dataset_name: qm9_vasp

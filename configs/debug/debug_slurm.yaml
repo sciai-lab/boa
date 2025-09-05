@@ -4,12 +4,11 @@ defaults:
   - override /trainer: slurm
   - override /hydra: slurm
 
-# Override deterministic setting to avoid cloudpickle issues with SLURM
-deterministic: False
-
 trainer:
-  limit_train_batches: 10
+  limit_train_batches: 100
   limit_val_batches: 2
+  log_every_n_steps: 1
+
 
 hydra:
   launcher:

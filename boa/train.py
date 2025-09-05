@@ -8,11 +8,11 @@ import rich
 import rootutils
 from omegaconf import DictConfig, ListConfig, open_dict
 
-# this import registers custom omegaconf resolvers
-import boa.utils.omegaconf_resolvers  # noqa E402
-from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree
-
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+
+import boa.utils.omegaconf_resolvers  # noqa E402
+from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree  # noqa E402
+
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH

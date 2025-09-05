@@ -38,3 +38,4 @@ pytest
 pre-commit
 ruff
 setuptools<80.9
+gitpython
