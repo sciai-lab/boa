@@ -10,9 +10,6 @@ import rootutils
 import torch
 from lightning.pytorch import Callback, seed_everything
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-
-# NOTE: disable slurm detection of lightning
-from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, ListConfig, open_dict
 
 # this import registers custom omegaconf resolvers
@@ -38,7 +35,6 @@ from scdp.common.system import PROJECT_ROOT, log_hyperparameters  # noqa E402
 # ------------------------------------------------------------------------------------ #
 
 torch.multiprocessing.set_sharing_strategy("file_system")
-SLURMEnvironment.detect = lambda: False
 pylogger = logging.getLogger(__name__)
 
 
@@ -115,13 +111,7 @@ def run(cfg: DictConfig) -> str:
 
     ckpt = None
 
-    trainer = pl.Trainer(
-        logger=logger,
-        callbacks=callbacks,
-        **cfg.trainer,
-    )
-
-    # save the config yaml file.
+    trainer = hydra.utils.instantiate(cfg.trainer, callbacks=callbacks, logger=logger)
     yaml_conf: str = omegaconf.OmegaConf.to_yaml(cfg)
     Path(storage_dir).mkdir(parents=True, exist_ok=True)
     (Path(storage_dir) / "config.yaml").write_text(yaml_conf)
