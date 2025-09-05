@@ -66,6 +66,7 @@ def run(cfg: DictConfig) -> str:
     Returns:
         the run directory inside the storage_dir used by the current experiment
     """
+
     if cfg.deterministic:
         seed_everything(cfg.seed)
 

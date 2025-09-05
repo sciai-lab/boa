@@ -16,8 +16,6 @@ num_sanity_val_steps: 2
 gradient_clip_val: 0.5
 val_check_interval: 1.0
 deterministic: False  # Disable deterministic mode for SLURM to avoid cloudpickle issues
-sync_batchnorm: False
-enable_progress_bar: False  # Disable progress bar to avoid potential issues
 
 
 plugins:
