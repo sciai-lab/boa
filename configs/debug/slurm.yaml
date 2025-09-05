@@ -2,7 +2,8 @@
 
 defaults:
   - override /trainer: slurm
-  - override /hydra: submitit_slurm
+  - override /hydra: slurm
+
 
 trainer:
   limit_train_batches: 10
@@ -11,10 +12,8 @@ trainer:
 hydra:
   launcher:
     partition: gpu_a100_short
-    time: "5:00"
     signal_delay_s: 150
     additional_parameters:
       signal: "SIGUSR1@150"
     # Submitit configuration
-    timeout_min: 4320  # 72 hours in minutes
-    slurm_max_num_timeout: 0
+    timeout_min: 5

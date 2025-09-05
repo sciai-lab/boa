@@ -1,31 +1,24 @@
 # @package hydra.launcher
 _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 
-# SLURM configuration based on your train.sh script
-partition: gpu_h100
+# BaseConf
+
+timeout_min: 4320
 nodes: 1
-ntasks_per_node: 1
+tasks_per_node: 1
 cpus_per_task: 16
 gpus_per_node: 1
 mem_gb: null
-time: "72:00:00"
-signal_delay_s: 299
+# job_name: ${name}
+
+# SlurmConf
+partition: gpu_h100
 max_num_timeout: 0
 
 # Job configuration
-job_name: ${name}
 account: null
 qos: null
 exclude: null
-additional_parameters:
-  signal: "SIGUSR1@300"
-  open-mode: "append"
-  export: "NONE"
-
-# Submitit configuration
-timeout_min: 4320  # 72 hours in minutes
-slurm_max_num_timeout: 0
-submitit_folder: ${paths.log_dir}/.submitit/${name}
 
 # Python environment setup
 setup:
@@ -33,3 +26,10 @@ setup:
   - "module purge"
   - "cd ~/boa/"
   - "source .venv/bin/activate"
+
+additional_parameters:
+  signal: "SIGUSR1@300"
+  open-mode: "append"
+  export: "NONE"
+
+# submitit_folder: ${paths.log_dir}/.submitit/${name}

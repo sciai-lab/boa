@@ -2,9 +2,9 @@
 
 # enable color logging
 defaults:
+  - launcher: basic
   - override hydra_logging: colorlog
   - override job_logging: colorlog
-  - launcher: basic
 
 # output directory, generated dynamically on each run
 run:
