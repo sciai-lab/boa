@@ -8,8 +8,8 @@ defaults:
   - lr_scheduler: cosine_annealing
   - callbacks: default
   - logger: tensorboard
-  - debug: null
   - _self_
+  - debug: null
 
 name: qm9_small
 

@@ -171,10 +171,7 @@ def run(cfg: DictConfig) -> str:
         )
         pre_logger = TensorBoardLogger(**pre_cfg.logger.tensorboard)
 
-        pre_trainer = pl.Trainer(
-            logger=pre_logger,
-            **pre_cfg.trainer,
-        )
+        pre_trainer = hydra.utils.instantiate(pre_cfg.trainer, logger=pre_logger)
         pre_trainer.fit(
             pre_model, pre_datamodule.train_dataloader(), pre_datamodule.val_dataloader()
         )
@@ -196,7 +193,7 @@ def run(cfg: DictConfig) -> str:
         logger.experiment.finish()
 
 
-@hydra.main(config_path=str(PROJECT_ROOT / "configs"), config_name="train", version_base="1.1")
+@hydra.main(config_path=str(PROJECT_ROOT / "configs"), config_name="train", version_base="1.3")
 def main(cfg: omegaconf.DictConfig):
     run(cfg)
 

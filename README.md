@@ -21,3 +21,10 @@ Fill .env with following lines to set environment variables:
 BOA_DATA="/export/scratch/mklockow/charge_density_lmdb"
 BOA_MODELS="."
 ```
+## Basic SLURM Job Submission
+
+To submit a single job to SLURM using the configuration from your original `train.sh` script:
+
+```bash
+python boa/train.py hydra=slurm trainer=slurm -m
+```
