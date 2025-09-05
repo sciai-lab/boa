@@ -47,7 +47,6 @@ class ConvertToOFData:
         of_data.add_item("probe_coords", sample.probe_coords, Representation.NONE)
         of_data.add_item("chg_labels", sample.chg_labels, Representation.NONE)
         of_data.add_item("n_atom", sample.n_atom, Representation.NONE)
-        of_data.add_item("n_vnode", sample.n_vnode, Representation.NONE)
         of_data.add_item("cell", sample.cell, Representation.NONE)
         return of_data
 

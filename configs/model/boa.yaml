@@ -8,16 +8,11 @@ concat_basis: false
 beta: None
 orb_cutoff: 3.0
 use_radial_correction: true
+use_abs: true
 abs_scale: 1e3
 scale_factor: 1e-1
 
-basis_info: 
-  _target_: boa.data.basis_info.BasisInfo.from_atomic_numbers_with_even_tempered_basis
-  basis: ${model.dft_basis_set}
-  atomic_numbers: [1, 6, 7, 8, 9]
-  beta: None
-  even_tempered: ${model.dft_wt_aug}
-  uncontracted: True
+basis_info: ${data.basis_info}
 
 defaults:
   - net: boa

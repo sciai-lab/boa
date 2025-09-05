@@ -12,6 +12,7 @@ from torch.utils.data import Dataset, Subset
 from tqdm import tqdm
 
 from boa.data.dataloader import ProbeDataLoader
+from boa.data.dataset import LmdbDataset, PyscfDataset
 from scdp.common.pyg import DataLoader
 
 
@@ -44,8 +45,9 @@ class DataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.dataset = dataset
-        with open(split_file, "r") as fp:
-            self.splits = json.load(fp)
+        if split_file is not None:
+            with open(split_file, "r") as fp:
+                self.splits = json.load(fp)
         self.num_workers = num_workers
         self.batch_size = batch_size
         self.train_dataset: Optional[Dataset] = None
@@ -59,14 +61,40 @@ class DataModule(pl.LightningDataModule):
         construct datasets and assign data scalers.
         """
         self.dataset = hydra.utils.instantiate(self.dataset)
-        self.train_dataset = Subset(self.dataset, self.splits["train"])
-        self.val_dataset = Subset(self.dataset, self.splits["validation"])
-        self.test_dataset = Subset(self.dataset, self.splits["test"])
-        if (Path(self.dataset.path) / "metadata_full.json").exists():
-            with open(self.dataset.path / "metadata_full.json", "r") as fp:
-                self.metadata = json.load(fp)
+        if isinstance(self.dataset, (LmdbDataset, PyscfDataset)):
+            self.train_dataset = Subset(self.dataset, self.splits["train"])
+            self.val_dataset = Subset(self.dataset, self.splits["validation"])
+            self.test_dataset = Subset(self.dataset, self.splits["test"])
+            if (Path(self.dataset.path) / "metadata_full.json").exists():
+                with open(self.dataset.path / "metadata_full.json", "r") as fp:
+                    self.metadata = json.load(fp)
+            else:
+                self.metadata = self.get_metadata()
         else:
-            self.metadata = self.get_metadata()
+            # Take 10 % of training as validation
+            full_train_dataset = self.dataset(split="train")
+            n_val = int(0.1 * len(full_train_dataset))
+            n_train = len(full_train_dataset) - n_val
+            self.train_dataset, self.val_dataset = torch.utils.data.random_split(
+                full_train_dataset,
+                [n_train, n_val],
+                generator=torch.Generator().manual_seed(42),
+            )
+            self.test_dataset = self.dataset(split="test")
+            if (
+                Path(self.train_dataset.dataset.root)
+                / self.train_dataset.dataset.mol_name
+                / "metadata_full.json"
+            ).exists():
+                with open(
+                    Path(self.train_dataset.dataset.root)
+                    / self.train_dataset.dataset.mol_name
+                    / "metadata_full.json",
+                    "r",
+                ) as fp:
+                    self.metadata = json.load(fp)
+            else:
+                self.metadata = self.get_metadata()
 
     def get_metadata(self):
         x_sum = 0
@@ -75,12 +103,26 @@ class DataModule(pl.LightningDataModule):
         avg_num_neighbors = 0
         print("get metadata.")
         progress = tqdm(total=len(self.train_dataset))
+        # if self.train_dataset has n_probe
+        if hasattr(self.train_dataset, "n_probe"):
+            n_probe = self.train_dataset.n_probe
+            self.train_dataset.n_probe = None
+        # if one of the transforms is SampleProbe disable it
+        if hasattr(self.train_dataset, "dataset") and hasattr(
+            self.train_dataset.dataset, "transform"
+        ):
+            for transform in self.train_dataset.dataset.transform.transforms:
+                if isinstance(transform, hydra.utils.get_class("boa.data.transforms.SampleProbe")):
+                    n_probe = transform.n_probe
+                    transform.n_probe = np.inf
+
         for data in self.train_dataset:
             x_sum += data.chg_labels.mean()
             x_2 += (data.chg_labels**2).mean()
-            unique_atom_types.update(data.atom_types.numpy().tolist())
-            avg_num_neighbors += data.edge_index.shape[1] / len(data.atom_types) / 2
+            unique_atom_types.update(data.atomic_numbers.numpy().tolist())
+            avg_num_neighbors += data.edge_index.shape[1] / len(data.atomic_numbers) / 2
             progress.update(1)
+
         x_mean = x_sum / len(self.train_dataset)
         x_var = x_2 / len(self.train_dataset) - x_mean**2
         avg_num_neighbors = int(avg_num_neighbors / len(self.train_dataset))
@@ -91,8 +133,25 @@ class DataModule(pl.LightningDataModule):
             "avg_num_neighbors": avg_num_neighbors,
             "unique_atom_types": list(unique_atom_types),
         }
-        with open(self.dataset.path / "metadata_full.json", "w") as fp:
-            json.dump(metadata, fp)
+        if isinstance(self.dataset, (LmdbDataset, PyscfDataset)):
+            with open(self.dataset.path / "metadata_full.json", "w") as fp:
+                json.dump(metadata, fp)
+        else:
+            with open(
+                Path(self.train_dataset.dataset.root)
+                / self.train_dataset.dataset.mol_name
+                / "metadata_full.json",
+                "w",
+            ) as fp:
+                json.dump(metadata, fp)
+        if hasattr(self.train_dataset, "n_probe"):
+            self.train_dataset.n_probe = n_probe
+        if hasattr(self.train_dataset, "dataset") and hasattr(
+            self.train_dataset.dataset, "transform"
+        ):
+            for transform in self.train_dataset.dataset.transform.transforms:
+                if isinstance(transform, hydra.utils.get_class("boa.data.transforms.SampleProbe")):
+                    transform.n_probe = n_probe
         return metadata
 
     def train_dataloader(self, shuffle=True):

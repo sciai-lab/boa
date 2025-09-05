@@ -6,6 +6,7 @@ from typing import List
 import hydra
 import lightning.pytorch as pl
 import omegaconf
+import rich
 import rootutils
 import torch
 from lightning.pytorch import Callback, seed_everything
@@ -14,6 +15,8 @@ from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 # NOTE: disable slurm detection of lightning
 from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, ListConfig, open_dict
+
+from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree
 
 # this import registers custom omegaconf resolvers
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
@@ -72,6 +75,10 @@ def run(cfg: DictConfig) -> str:
     """
     if cfg.deterministic:
         seed_everything(cfg.seed)
+
+    # print the resolved config using Rich library
+    if cfg.get("print_config"):
+        rich.print(dict_to_tree(cfg, guide_style="dim"))
 
     # Instantiate datamodule
     pylogger.info(f"Instantiating <{cfg.data.datamodule['_target_']}>")
@@ -143,22 +150,23 @@ def run(cfg: DictConfig) -> str:
         model.load_state_dict(state, strict=False)
         pylogger.info(f"Loaded model weights from: {cfg.weight_ckpt_path}")
 
-    if cfg.initial_guess_pre_training_steps > 0:
-        pre_cfg = cfg.copy()
-        with open_dict(pre_cfg.model):
-            pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
-            if "pre_training_overrides" in cfg:
-                pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
-                # pretty print the new pre_cfg
-                pylogger.info(
-                    f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
-                )
-            if "pre_training_replacements" in cfg:
-                for key, value in cfg.pre_training_replacements.items():
-                    pre_cfg[key] = value
-                pylogger.info(
-                    f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
-                )
+    if not cfg.ckpt_path and not cfg.weight_ckpt_path:
+        if cfg.initial_guess_pre_training_steps > 0:
+            pre_cfg = cfg.copy()
+            with open_dict(pre_cfg.model):
+                pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
+                if "pre_training_overrides" in cfg:
+                    pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
+                    # pretty print the new pre_cfg
+                    pylogger.info(
+                        f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
+                    )
+                if "pre_training_replacements" in cfg:
+                    for key, value in cfg.pre_training_replacements.items():
+                        pre_cfg[key] = value
+                    pylogger.info(
+                        f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
+                    )
 
         pre_datamodule = hydra.utils.instantiate(pre_cfg.data.datamodule, _recursive_=False)
         pre_datamodule.setup(stage="fit")
@@ -200,10 +208,6 @@ def run(cfg: DictConfig) -> str:
     ):
         pylogger.info("starting testing.")
         trainer.test(dataloaders=[datamodule.test_dataloader()])
-
-    # Logger closing to release resources/avoid multi-run conflicts
-    if logger is not None:
-        logger.experiment.finish()
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "configs"), config_name="train", version_base="1.1")

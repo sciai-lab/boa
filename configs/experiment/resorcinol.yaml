@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - override /data: md
+  - override /trainer: default
+
+data:
+  basis_info:
+    atomic_numbers: [1, 6, 8]
+  datamodule:
+    dataset:
+      mol_name: resorcinol
+
+trainer:
+  check_val_every_n_epoch: 10

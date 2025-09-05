@@ -7,7 +7,7 @@ hydra-optuna-sweeper
 omegaconf==2.3.0
 
 torch
-lightning==2.1.3
+lightning====2.5.4
 torch_ema==0.3
 torch_geometric
 torch-cluster
@@ -37,3 +37,4 @@ rich
 pytest
 pre-commit
 ruff
+setuptools<80.9
