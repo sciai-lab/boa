@@ -1,26 +1,5 @@
-# Trainer configuration for SLURM execution
-# This matches the settings from your train.sh script
+defaults:
+  - default
 
-default_root_dir: ${paths.output_dir}
-
-# SLURM specific settings
-strategy: auto
-nodes: 1
-devices: 1  # Number of GPUs per node
-accelerator: 'gpu'
-precision: 32
-
-# Training settings
-max_epochs: 100000
-max_steps: 500000
-num_sanity_val_steps: 2
-gradient_clip_val: 0.5
-val_check_interval: 1.0
-deterministic: ${deterministic}
-
-# Enable signal handling for SLURM timeouts
-enable_progress_bar: true
-enable_model_summary: true
-
-# Fast dev run (set to false for production)
-fast_dev_run: False
+plugins:
+  _target_: lightning.pytorch.plugins.environments.SLURMEnvironment
