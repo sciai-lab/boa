@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=gpu_a100_il
+#SBATCH --partition=gpu_a100_il,gpu_h100_il,gpu_h100
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1

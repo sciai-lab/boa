@@ -14,7 +14,7 @@ mem_gb: null
 # job_name: ${name}
 
 # SlurmConf
-partition: gpu_h100
+partition: gpu_a100_il,gpu_h100_il,gpu_h100
 max_num_timeout: 0
 
 # Job configuration
@@ -26,8 +26,7 @@ exclude: null
 setup:
   - "source ~/.bashrc"
   - "module purge"
-  - "zstd --decompress -T0 /pfs/work9/workspace/scratch/hd_ai306-dft_data/data/qm9_vasp.tar.zst | tar --extract --file - -C $TMPDIR/"
-  - "export BOA_DATA=$TMPDIR/hd_ai306-dft_data"
+  - "export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/data"
   - "export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models"
   - "cd ~/boa/"
   - "source .venv/bin/activate"
