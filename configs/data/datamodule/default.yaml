@@ -7,3 +7,8 @@ dataloader_kwargs:
 n_probe:
   val: ${data.datamodule.n_probe.train}
   test: ${data.datamodule.n_probe.train}
+
+num_workers: 
+  train: 16
+  val: 16
+  test: 16

@@ -231,6 +231,15 @@ def run(cfg: DictConfig) -> str:
     pylogger.info("starting training.")
     trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=ckpt)
 
+    # save best model path if available
+    if trainer.checkpoint_callback.best_model_path:
+        (Path(storage_dir) / "best_model_path.txt").write_text(
+            trainer.checkpoint_callback.best_model_path
+        )
+        pylogger.info(
+            f"Best model path: {trainer.checkpoint_callback.best_model_path} (score: {trainer.checkpoint_callback.best_model_score})"
+        )
+
     if (
         datamodule.test_dataset is not None
         and trainer.checkpoint_callback.best_model_path is not None

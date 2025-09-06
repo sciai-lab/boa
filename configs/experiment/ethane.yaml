@@ -1,6 +1,7 @@
 # @package _global_
 
 defaults:
+  - md_default
   - override /data: md
   - override /trainer: default
 
@@ -8,6 +9,3 @@ data:
   datamodule:
     dataset:
       mol_name: ethane
-
-trainer:
-  check_val_every_n_epoch: 10

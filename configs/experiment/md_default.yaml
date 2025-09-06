@@ -1,11 +1,9 @@
 # @package _global_
 
 defaults:
-  - md_default
   - override /data: md
   - override /trainer: default
 
-data:
-  datamodule:
-    dataset:
-      mol_name: benzene
+trainer:
+  check_val_every_n_epoch: 10
+  max_steps: 200000

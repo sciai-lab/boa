@@ -4,10 +4,6 @@ defaults:
 
 _target_: boa.data.datamodule.ProbeDataModule
 
-num_workers: 
-  train: 8
-  val: 8
-  test: 8
 batch_size: 
   train: 12
   val: 12
