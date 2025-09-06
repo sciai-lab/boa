@@ -16,6 +16,8 @@ module purge
 
 export BOA_DATA="/pfs/work9/workspace/scratch/hd_ai306-dft_data/data"
 export BOA_MODELS="/pfs/work9/workspace/scratch/hd_ai306-dft_data/models"
+export HYDRA_FULL_ERROR=1
+
 cd ~/boa/
 source .venv/bin/activate
 srun --export=ALL python -u boa/train.py experiment=qm9_vasp_small_noradcor trainer=slurm initial_guess_pre_training_steps=2
