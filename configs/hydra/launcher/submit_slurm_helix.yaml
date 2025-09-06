@@ -27,7 +27,7 @@ setup:
   - "source ~/.bashrc"
   - "module purge"
   - "mkdir -p $TMPDIR"
-  - "tar --zstd -xf /gpfs/bwfor/work/ws/hd_ai306-dft_data/data/${data.dataset_name}.tar.zst -C \"$TMPDIR\""
+  - "tar --use-compress-program=unzstd -xf /gpfs/bwfor/work/ws/hd_ai306-dft_data/data/${data.dataset_name}.tar.zst -C \"$TMPDIR\""
   - "export BOA_DATA=$TMPDIR"
   - "export BOA_MODELS=/gpfs/bwfor/work/ws/hd_ai306-dft_data/models"
   - "cd ~/boa/"

@@ -65,6 +65,7 @@ dependencies:
       - ruff
       - setuptools<80.9
       - gitpython
+      - zstd
   # The following are optional loggers, uncomment as needed:
   # - wandb
   # - neptune-client
