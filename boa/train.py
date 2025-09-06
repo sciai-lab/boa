@@ -69,8 +69,6 @@ def run(cfg: DictConfig) -> str:
 
     from scdp.common.system import log_hyperparameters  # noqa E402
 
-    torch.multiprocessing.set_sharing_strategy("file_system")
-
     # ------------------------------------------------------------------------------------ #
     # the setup_root above is equivalent to:
     # - adding project root dir to PYTHONPATH
