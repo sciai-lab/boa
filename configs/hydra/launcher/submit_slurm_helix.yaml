@@ -34,6 +34,7 @@ setup:
   - "source .venv/bin/activate"
   - "export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID"
   - "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+  - "export HYDRA_FULL_ERROR=1"
 
 additional_parameters:
   signal: "SIGUSR1@180"
