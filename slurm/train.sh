@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --signal=SIGUSR1@180
-#SBATCH --time=72:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
 #SBATCH --error=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
 #SBATCH --open-mode=append
@@ -17,7 +17,7 @@ module purge
 # Ensure extraction directory exists
 mkdir -p $TMPDIR
 # Decompress and extract to $TMPDIR
-zstd --decompress -T0 /pfs/work9/workspace/scratch/hd_ai306-dft_data/data/qm9_vasp.tar.zst | tar --extract --file - -C $TMPDIR/
+tar --zstd -xf /pfs/work9/workspace/scratch/hd_ai306-dft_data/data/qm9_vasp.tar.zst -C "$TMPDIR"
 
 export BOA_DATA=$TMPDIR
 export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models
