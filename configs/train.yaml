@@ -10,6 +10,7 @@ defaults:
   - logger: tensorboard
   - _self_
   - experiment: null
+  - debug: null
 
 name: qm9_small
 

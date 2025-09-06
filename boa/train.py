@@ -1,27 +1,17 @@
-import json
 import logging
 from pathlib import Path
 from typing import List
 
 import hydra
-import lightning.pytorch as pl
 import omegaconf
 import rich
 import rootutils
-import torch
-from lightning.pytorch import Callback, seed_everything
-from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-
-# NOTE: disable slurm detection of lightning
-from lightning.pytorch.plugins.environments import SLURMEnvironment
 from omegaconf import DictConfig, ListConfig, open_dict
 
-from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree
-
-# this import registers custom omegaconf resolvers
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
+
 import boa.utils.omegaconf_resolvers  # noqa E402
-from scdp.common.system import PROJECT_ROOT, log_hyperparameters  # noqa E402
+from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree  # noqa E402
 
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
@@ -39,13 +29,10 @@ from scdp.common.system import PROJECT_ROOT, log_hyperparameters  # noqa E402
 #
 # more info: https://github.com/ashleve/rootutils
 # ------------------------------------------------------------------------------------ #
-
-torch.multiprocessing.set_sharing_strategy("file_system")
-SLURMEnvironment.detect = lambda: False
 pylogger = logging.getLogger(__name__)
 
 
-def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
+def build_callbacks(cfg: ListConfig, *args) -> List:
     """Instantiate the callbacks given their configuration.
 
     Args:
@@ -55,7 +42,7 @@ def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
     Returns:
         the complete list of callbacks to use
     """
-    callbacks: List[Callback] = list(args)
+    callbacks: List = list(args)
 
     for callback in cfg:
         pylogger.info(f"Adding callback <{callback['_target_'].split('.')[-1]}>")
@@ -73,6 +60,36 @@ def run(cfg: DictConfig) -> str:
     Returns:
         the run directory inside the storage_dir used by the current experiment
     """
+    import json
+
+    import lightning.pytorch as pl
+    import torch
+    from lightning.pytorch import Callback, seed_everything
+    from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
+
+    from scdp.common.system import log_hyperparameters  # noqa E402
+
+    torch.multiprocessing.set_sharing_strategy("file_system")
+
+    # ------------------------------------------------------------------------------------ #
+    # the setup_root above is equivalent to:
+    # - adding project root dir to PYTHONPATH
+    #       (so you don't need to force user to install project as a package)
+    #       (necessary before importing any local modules e.g. `from src import utils`)
+    # - setting up PROJECT_ROOT environment variable
+    #       (which is used as a base for paths in "configs/paths/config.yaml")
+    #       (this way all filepaths are the same no matter where you run the code)
+    # - loading environment variables from ".env" in root dir
+    #
+    # you can remove it if you:
+    # 1. either install project as a package or move entry files to project root dir
+    # 2. set `root_dir` to "." in "configs/paths/config.yaml"
+    #
+    # more info: https://github.com/ashleve/rootutils
+    # ------------------------------------------------------------------------------------ #
+
+    torch.multiprocessing.set_sharing_strategy("file_system")
+    pylogger = logging.getLogger(__name__)
     if cfg.deterministic:
         seed_everything(cfg.seed)
 
@@ -122,13 +139,7 @@ def run(cfg: DictConfig) -> str:
 
     ckpt = None
 
-    trainer = pl.Trainer(
-        logger=logger,
-        callbacks=callbacks,
-        **cfg.trainer,
-    )
-
-    # save the config yaml file.
+    trainer = hydra.utils.instantiate(cfg.trainer, callbacks=callbacks, logger=logger)
     yaml_conf: str = omegaconf.OmegaConf.to_yaml(cfg)
     Path(storage_dir).mkdir(parents=True, exist_ok=True)
     (Path(storage_dir) / "config.yaml").write_text(yaml_conf)
@@ -139,6 +150,10 @@ def run(cfg: DictConfig) -> str:
     assert not (cfg.ckpt_path and cfg.weight_ckpt_path), (
         "Only one of `ckpt_path` or `weight_ckpt_path` can be provided."
     )
+
+    # Check whether pretraining was finished before
+    pretraining_done_marker = Path(storage_dir) / ".pretraining_completed"
+
     if cfg.ckpt_path:
         ckpt = cfg.ckpt_path
         pylogger.info(f"Using checkpoint: {ckpt}")
@@ -150,23 +165,31 @@ def run(cfg: DictConfig) -> str:
         model.load_state_dict(state, strict=False)
         pylogger.info(f"Loaded model weights from: {cfg.weight_ckpt_path}")
 
-    if not cfg.ckpt_path and not cfg.weight_ckpt_path:
-        if cfg.initial_guess_pre_training_steps > 0:
-            pre_cfg = cfg.copy()
-            with open_dict(pre_cfg.model):
-                pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
-                if "pre_training_overrides" in cfg:
-                    pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
-                    # pretty print the new pre_cfg
-                    pylogger.info(
-                        f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
-                    )
-                if "pre_training_replacements" in cfg:
-                    for key, value in cfg.pre_training_replacements.items():
-                        pre_cfg[key] = value
-                    pylogger.info(
-                        f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
-                    )
+    # Only do pretraining if we're not resuming from a checkpoint and pretraining hasn't been completed
+    should_do_pretraining = (
+        not cfg.ckpt_path
+        and not cfg.weight_ckpt_path
+        and not pretraining_done_marker.exists()
+        and cfg.initial_guess_pre_training_steps > 0
+    )
+
+    if should_do_pretraining:
+        pylogger.info("Starting initial guess pre-training...")
+        pre_cfg = cfg.copy()
+        with open_dict(pre_cfg.model):
+            pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
+            if "pre_training_overrides" in cfg:
+                pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
+                # pretty print the new pre_cfg
+                pylogger.info(
+                    f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
+                )
+            if "pre_training_replacements" in cfg:
+                for key, value in cfg.pre_training_replacements.items():
+                    pre_cfg[key] = value
+                pylogger.info(
+                    f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
+                )
 
         pre_datamodule = hydra.utils.instantiate(pre_cfg.data.datamodule, _recursive_=False)
         pre_datamodule.setup(stage="fit")
@@ -189,15 +212,23 @@ def run(cfg: DictConfig) -> str:
         )
         pre_logger = TensorBoardLogger(**pre_cfg.logger.tensorboard)
 
-        pre_trainer = pl.Trainer(
-            logger=pre_logger,
-            **pre_cfg.trainer,
-        )
+        pre_trainer = hydra.utils.instantiate(pre_cfg.trainer, logger=pre_logger)
         pre_trainer.fit(
             pre_model, pre_datamodule.train_dataloader(), pre_datamodule.val_dataloader()
         )
 
         model.model.initial_guess_module.load_state_dict(pre_model.model.state_dict())
+
+        # Mark pretraining as completed
+        pretraining_done_marker.touch()
+        pylogger.info(f"Pre-training completed. Marker saved at: {pretraining_done_marker}")
+    else:
+        if pretraining_done_marker.exists():
+            pylogger.info("Skipping pre-training (already completed in previous run)")
+        elif cfg.ckpt_path or cfg.weight_ckpt_path:
+            pylogger.info("Skipping pre-training (checkpoint/weights provided)")
+        else:
+            pylogger.info("Skipping pre-training (initial_guess_pre_training_steps is 0)")
 
     pylogger.info("starting training.")
     trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=ckpt)
@@ -210,7 +241,11 @@ def run(cfg: DictConfig) -> str:
         trainer.test(dataloaders=[datamodule.test_dataloader()])
 
 
-@hydra.main(config_path=str(PROJECT_ROOT / "configs"), config_name="train", version_base="1.1")
+@hydra.main(
+    config_path=str(Path(__file__).parent.parent / "configs"),
+    config_name="train",
+    version_base="1.3",
+)
 def main(cfg: omegaconf.DictConfig):
     run(cfg)
 

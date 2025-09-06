@@ -49,12 +49,13 @@ dependencies:
       - --find-links https://data.pyg.org/whl/torch-2.8.0+cu126.html
       - torch_ema==0.3
       - mp-pyrho==0.3.0
-      - hydra-optuna-sweeper
+      - hydra-submitit-launcher
       - hydra-colorlog
       - rootutils
       - lmdb==1.4.1
       - p_tqdm==1.4.0
       - torch
+      - torchdata
       - torch-cluster
       - lightning==2.5.4
       - e3nn==0.5.6
@@ -63,6 +64,7 @@ dependencies:
       - pre-commit
       - ruff
       - setuptools<80.9
+      - gitpython
   # The following are optional loggers, uncomment as needed:
   # - wandb
   # - neptune-client

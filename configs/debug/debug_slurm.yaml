@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - override /trainer: slurm
+  - override /hydra: slurm
+
+trainer:
+  limit_train_batches: 100
+  limit_val_batches: 2
+  log_every_n_steps: 1
+
+
+hydra:
+  launcher:
+    partition: "gpu_a100_short"
+    signal_delay_s: 20
+    additional_parameters:
+      signal: "SIGUSR1@20"
+    # Submitit configuration
+    timeout_min: 2

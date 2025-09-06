@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - phenol
+  - override /trainer: slurm
+  - override /hydra: slurm
+
+name: phenol
