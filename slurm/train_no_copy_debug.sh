@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --partition=gpu_a100_il
+#SBATCH --partition=gpu_a100_short
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --signal=SIGUSR1@180
-#SBATCH --time=6:00:00
+#SBATCH --signal=SIGUSR1@10
+#SBATCH --time=0:04:00
 #SBATCH --output=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
 #SBATCH --error=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
 #SBATCH --open-mode=append
@@ -18,4 +18,4 @@ export BOA_DATA="/pfs/work9/workspace/scratch/hd_ai306-dft_data/data"
 export BOA_MODELS="/pfs/work9/workspace/scratch/hd_ai306-dft_data/models"
 cd ~/boa/
 source .venv/bin/activate
-srun --export=ALL python -u boa/train.py experiment=qm9_vasp_small_noradcor trainer=slurm
+srun --export=ALL python -u boa/train.py experiment=qm9_vasp_small_noradcor trainer=slurm initial_guess_pre_training_steps=2

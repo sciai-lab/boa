@@ -150,6 +150,10 @@ def run(cfg: DictConfig) -> str:
     assert not (cfg.ckpt_path and cfg.weight_ckpt_path), (
         "Only one of `ckpt_path` or `weight_ckpt_path` can be provided."
     )
+
+    # Check whether pretraining was finished before
+    pretraining_done_marker = Path(storage_dir) / ".pretraining_completed"
+
     if cfg.ckpt_path:
         ckpt = cfg.ckpt_path
         pylogger.info(f"Using checkpoint: {ckpt}")
@@ -161,23 +165,31 @@ def run(cfg: DictConfig) -> str:
         model.load_state_dict(state, strict=False)
         pylogger.info(f"Loaded model weights from: {cfg.weight_ckpt_path}")
 
-    if not cfg.ckpt_path and not cfg.weight_ckpt_path:
-        if cfg.initial_guess_pre_training_steps > 0:
-            pre_cfg = cfg.copy()
-            with open_dict(pre_cfg.model):
-                pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
-                if "pre_training_overrides" in cfg:
-                    pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
-                    # pretty print the new pre_cfg
-                    pylogger.info(
-                        f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
-                    )
-                if "pre_training_replacements" in cfg:
-                    for key, value in cfg.pre_training_replacements.items():
-                        pre_cfg[key] = value
-                    pylogger.info(
-                        f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
-                    )
+    # Only do pretraining if we're not resuming from a checkpoint and pretraining hasn't been completed
+    should_do_pretraining = (
+        not cfg.ckpt_path
+        and not cfg.weight_ckpt_path
+        and not pretraining_done_marker.exists()
+        and cfg.initial_guess_pre_training_steps > 0
+    )
+
+    if should_do_pretraining:
+        pylogger.info("Starting initial guess pre-training...")
+        pre_cfg = cfg.copy()
+        with open_dict(pre_cfg.model):
+            pre_cfg.model.net = pre_cfg.model.net.initial_guess_module
+            if "pre_training_overrides" in cfg:
+                pre_cfg = omegaconf.OmegaConf.merge(pre_cfg, cfg.pre_training_overrides)
+                # pretty print the new pre_cfg
+                pylogger.info(
+                    f"Pre-training overrides:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_overrides)}"
+                )
+            if "pre_training_replacements" in cfg:
+                for key, value in cfg.pre_training_replacements.items():
+                    pre_cfg[key] = value
+                pylogger.info(
+                    f"Pre-training config replacements:\n{omegaconf.OmegaConf.to_yaml(cfg.pre_training_replacements)}"
+                )
 
         pre_datamodule = hydra.utils.instantiate(pre_cfg.data.datamodule, _recursive_=False)
         pre_datamodule.setup(stage="fit")
@@ -206,6 +218,17 @@ def run(cfg: DictConfig) -> str:
         )
 
         model.model.initial_guess_module.load_state_dict(pre_model.model.state_dict())
+
+        # Mark pretraining as completed
+        pretraining_done_marker.touch()
+        pylogger.info(f"Pre-training completed. Marker saved at: {pretraining_done_marker}")
+    else:
+        if pretraining_done_marker.exists():
+            pylogger.info("Skipping pre-training (already completed in previous run)")
+        elif cfg.ckpt_path or cfg.weight_ckpt_path:
+            pylogger.info("Skipping pre-training (checkpoint/weights provided)")
+        else:
+            pylogger.info("Skipping pre-training (initial_guess_pre_training_steps is 0)")
 
     pylogger.info("starting training.")
     trainer.fit(model, datamodule.train_dataloader(), datamodule.val_dataloader(), ckpt_path=ckpt)

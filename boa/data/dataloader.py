@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from torch.utils.data import DataLoader
+from torchdata.stateful_dataloader import StatefulDataLoader
 
 from boa.data.of_batch import OFCollater
 
@@ -14,7 +14,7 @@ class ProbeCollater(OFCollater):
         return super().__call__(batch)
 
 
-class ProbeDataLoader(DataLoader):
+class ProbeDataLoader(StatefulDataLoader):
     r"""A data loader which merges data objects from a
     :class:`torch_geometric.data.Dataset` to a mini-batch.
     Data objects can be either of type :class:`~torch_geometric.data.Data` or

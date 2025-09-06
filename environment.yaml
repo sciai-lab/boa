@@ -55,6 +55,7 @@ dependencies:
       - lmdb==1.4.1
       - p_tqdm==1.4.0
       - torch
+      - torchdata
       - torch-cluster
       - lightning==2.5.4
       - e3nn==0.5.6

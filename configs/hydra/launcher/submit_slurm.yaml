@@ -4,7 +4,7 @@ _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 # BaseConf
 # Time Settings
 timeout_min: 4320
-signal_delay_s: 300
+# signal_delay_s: 180 seems to send USR2
 # Node Settings
 nodes: 1
 tasks_per_node: 1
@@ -34,7 +34,7 @@ setup:
   - "export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID"
 
 additional_parameters:
-  signal: "SIGUSR1@300"
+  signal: "SIGUSR1@180"
   open-mode: "append"
   export: "ALL"
 

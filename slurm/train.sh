@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --signal=SIGUSR1@300
+#SBATCH --signal=SIGUSR1@180
 #SBATCH --time=72:00:00
 #SBATCH --output=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
 #SBATCH --error=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models/sbatch_output/%x.%j.out
