@@ -10,7 +10,7 @@ run:
   # see below for details
   dir: ${paths.log_dir}/${task_name}/runs/${dir_counter:${paths.log_dir}/${task_name}/runs,3}_${name}_${smart_override_dirname:${hydra.job.override_dirname}}
 sweep:
-  dir: ${paths.log_dir}/${task_name}/multiruns/${dir_counter:${paths.log_dir}}
+  dir: ${paths.log_dir}/${task_name}/multiruns/${fetch_dir_counter:${paths.log_dir}}
   # configuration for the subdirectory of each run. also note the exclude keys of override_dirname specified below.
 
   # longer form, with full keys and subkeys

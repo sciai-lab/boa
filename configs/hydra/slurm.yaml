@@ -13,7 +13,7 @@ run:
   dir: ${paths.log_dir}/${task_name}/slurm_runs/${dir_counter:${paths.log_dir}/${task_name}/slurm_runs,3}_${name}_${smart_override_dirname:${hydra.job.override_dirname}}
 
 sweep:
-  dir: ${paths.log_dir}/${task_name}/slurm_multiruns/${dir_counter:${paths.log_dir}}
+  dir: ${paths.log_dir}/${task_name}/slurm_multiruns/${fetch_dir_counter:${paths.log_dir}}
   subdir: ${dir_counter:${paths.log_dir}}_${smart_override_dirname:${hydra.job.override_dirname}}
 
 job_logging:
