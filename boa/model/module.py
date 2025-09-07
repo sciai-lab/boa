@@ -2,6 +2,7 @@ import pyscf
 import torch
 from hydra.utils import instantiate
 from lightning import LightningModule
+from numpy import sort
 from torch_ema import ExponentialMovingAverage
 
 from boa.model.gtos import MAX_L, GTOs
@@ -41,7 +42,7 @@ class ChgLightningModule(LightningModule):
 
     def construct_orbitals(self):
         # construct GTOs
-        unique_atom_types = self.hparams.metadata["unique_atom_types"]
+        unique_atom_types = sort(self.hparams.metadata["unique_atom_types"])
         print(f"Unique atom types: {unique_atom_types}")
 
         basis_dict_sym = self.basis_info.basis_dict
