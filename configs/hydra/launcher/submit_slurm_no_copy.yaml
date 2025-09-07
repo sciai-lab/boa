@@ -39,4 +39,4 @@ additional_parameters:
   open-mode: "append"
   export: "ALL"
 
-submitit_folder: "${hydra.sweep.dir}/%j_${name}"
+submitit_folder: "${hydra.sweep.dir}/%j_submitit_logs"
