@@ -41,7 +41,6 @@ conventions:
 
 # reproducibility
 seed: 0
-deterministic: True
 
 lr_schedule_freq: 1
 

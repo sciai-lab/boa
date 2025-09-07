@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from random import randint
 from typing import List
 
 import hydra
@@ -88,8 +89,13 @@ def run(cfg: DictConfig) -> str:
 
     torch.multiprocessing.set_sharing_strategy("file_system")
     pylogger = logging.getLogger(__name__)
-    if cfg.deterministic:
-        seed_everything(cfg.seed)
+    if cfg.get("seed") is not None:
+        seed_everything(cfg.seed, workers=True)
+    else:
+        seed = randint(0, 2**32 - 1)
+        seed_everything(seed, workers=True)
+        with open_dict(cfg):
+            cfg.seed = seed
 
     # print the resolved config using Rich library
     if cfg.get("print_config"):
