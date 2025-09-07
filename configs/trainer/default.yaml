@@ -11,4 +11,3 @@ max_steps: 500000
 num_sanity_val_steps: 2
 gradient_clip_val: 0.5
 val_check_interval: 1.0
-deterministic: ${deterministic}

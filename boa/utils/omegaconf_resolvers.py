@@ -75,10 +75,37 @@ def dir_counter(path: str, length: int = 2) -> str:
         return str(get_and_increment_counter(os.path.join(path, ".run_counter"))).zfill(length)
 
 
+def fetch_dir_counter(path: str, length: int = 2) -> str:
+    """Fetches the current counter in a directory without incrementing it.
+
+    Args:
+        path (str): The path to the directory.
+        length (int, optional): The length of the counter. Defaults to 2.
+
+    Returns:
+        str: The counter as a string with leading zeros.
+    """
+    if "SLURM_JOB_ID" in os.environ:
+        return str(os.environ["SLURM_JOB_ID"].zfill(length))
+    else:
+        counter_file = os.path.join(path, ".run_counter")
+        if os.path.exists(counter_file):
+            with open(counter_file, "r") as f:
+                counter = int(f.read().strip())
+        else:
+            counter = 0
+        return str(counter).zfill(length)
+
+
 # register a resolver that counts the number of runs in a directory
 OmegaConf.register_new_resolver(
     "dir_counter",
     dir_counter,
+)
+
+OmegaConf.register_new_resolver(
+    "fetch_dir_counter",
+    fetch_dir_counter,
 )
 
 
