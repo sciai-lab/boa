@@ -3,7 +3,7 @@ _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 
 # BaseConf
 # Time Settings
-timeout_min: 2880
+timeout_min: 4320
 # signal_delay_s: 180 seems to send USR2
 # Node Settings
 nodes: 1
