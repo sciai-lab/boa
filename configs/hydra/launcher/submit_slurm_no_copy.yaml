@@ -28,6 +28,7 @@ setup:
   - "module purge"
   - "export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/data"
   - "export BOA_MODELS=/pfs/work9/workspace/scratch/hd_ai306-dft_data/models"
+  - "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
   - "cd ~/boa/"
   - "source .venv/bin/activate"
   - "export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID"
