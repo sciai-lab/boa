@@ -10,7 +10,7 @@ nodes: 1
 tasks_per_node: 1
 cpus_per_task: 16
 gpus_per_node: 1
-mem_gb: null
+mem_gb: 64
 job_name: ${name}
 stderr_to_stdout: true
 
@@ -27,6 +27,8 @@ exclude: null
 setup:
   - "source ~/.bashrc"
   - "module purge"
+  - "module load devel/cuda/12.6"
+  - "module load compiler/gnu/14.1"
   - "mkdir -p $TMPDIR"
   - "tar --use-compress-program=unzstd -xf /gpfs/bwfor/work/ws/hd_ai306-dft_data/data/${data.dataset_name}.tar.zst -C \"$TMPDIR\""
   - "export BOA_DATA=$TMPDIR"
