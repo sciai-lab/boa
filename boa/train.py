@@ -1,4 +1,6 @@
 import logging
+import sys
+import traceback
 from pathlib import Path
 from typing import List
 
@@ -254,7 +256,11 @@ def run(cfg: DictConfig) -> str:
     version_base="1.3",
 )
 def main(cfg: omegaconf.DictConfig):
-    run(cfg)
+    try:
+        run(cfg)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":
