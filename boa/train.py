@@ -16,22 +16,6 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 import boa.utils.omegaconf_resolvers  # noqa E402
 from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree  # noqa E402
 
-# ------------------------------------------------------------------------------------ #
-# the setup_root above is equivalent to:
-# - adding project root dir to PYTHONPATH
-#       (so you don't need to force user to install project as a package)
-#       (necessary before importing any local modules e.g. `from src import utils`)
-# - setting up PROJECT_ROOT environment variable
-#       (which is used as a base for paths in "configs/paths/config.yaml")
-#       (this way all filepaths are the same no matter where you run the code)
-# - loading environment variables from ".env" in root dir
-#
-# you can remove it if you:
-# 1. either install project as a package or move entry files to project root dir
-# 2. set `root_dir` to "." in "configs/paths/config.yaml"
-#
-# more info: https://github.com/ashleve/rootutils
-# ------------------------------------------------------------------------------------ #
 pylogger = logging.getLogger(__name__)
 
 
@@ -71,23 +55,6 @@ def run(cfg: DictConfig) -> str:
     from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 
     from scdp.common.system import log_hyperparameters  # noqa E402
-
-    # ------------------------------------------------------------------------------------ #
-    # the setup_root above is equivalent to:
-    # - adding project root dir to PYTHONPATH
-    #       (so you don't need to force user to install project as a package)
-    #       (necessary before importing any local modules e.g. `from src import utils`)
-    # - setting up PROJECT_ROOT environment variable
-    #       (which is used as a base for paths in "configs/paths/config.yaml")
-    #       (this way all filepaths are the same no matter where you run the code)
-    # - loading environment variables from ".env" in root dir
-    #
-    # you can remove it if you:
-    # 1. either install project as a package or move entry files to project root dir
-    # 2. set `root_dir` to "." in "configs/paths/config.yaml"
-    #
-    # more info: https://github.com/ashleve/rootutils
-    # ------------------------------------------------------------------------------------ #
 
     torch.multiprocessing.set_sharing_strategy("file_system")
     pylogger = logging.getLogger(__name__)

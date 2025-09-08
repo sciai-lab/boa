@@ -1,3 +1,7 @@
+import logging
+from pathlib import Path
+
+import numpy as np
 import pyscf
 import torch
 from hydra.utils import instantiate
@@ -11,6 +15,7 @@ from scdp.model.basis_set import basis_from_pyscf
 from scdp.model.utils import get_nmape
 
 element_symbols_to_numbers = pyscf.data.elements.ELEMENTS_PROTON
+pylogger = logging.getLogger(__name__)
 
 
 class ChgLightningModule(LightningModule):
@@ -298,18 +303,51 @@ class ChgLightningModule(LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        loss, pred, target, _ = self(batch)
+        loss, pred, target, _, _ = self(batch)
         nmape = get_nmape(
             pred,
             target,
             torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe),
-        ).mean()
+        )
+        # Collect individual NMAPE values for saving
+        if hasattr(self, "test_nmapes"):
+            self.test_nmapes.extend(nmape.cpu().numpy().tolist())
+
+        nmape_mean = nmape.mean()
         self.log_dict(
-            {"loss/test": loss, "nmape/test": nmape},
+            {"loss/test": loss, "nmape/test": nmape_mean},
             batch_size=batch["cell"].shape[0],
             sync_dist=self.distributed,
         )
         return loss
+
+    def on_test_start(self):
+        """Initialize list to collect NMAPE values at the start of testing."""
+        self.test_nmapes = []
+
+    def on_test_end(self):
+        """Save collected NMAPE values at the end of testing."""
+        if hasattr(self, "test_nmapes") and len(self.test_nmapes) > 0:
+            # Get the checkpoint directory from the trainer's logger
+            if hasattr(self.trainer, "logger") and hasattr(self.trainer.logger, "log_dir"):
+                save_dir = Path(self.trainer.logger.log_dir)
+            else:
+                save_dir = Path(".")
+
+            # Save as .pt file
+            torch.save(self.test_nmapes, save_dir / "nmape_test.pt")
+            # Save as .txt file
+            with open(save_dir / "nmape_test.txt", "w") as f:
+                for item in self.test_nmapes:
+                    f.write(f"{item}\n")
+
+            # Log summary statistics
+            mean_nmape = np.mean(self.test_nmapes)
+            std_nmape = np.std(self.test_nmapes)
+            pylogger.info(f"Test NMAPE: {mean_nmape:.4f} ± {std_nmape:.4f}")
+            pylogger.info(f"Saved {len(self.test_nmapes)} NMAPE values to {save_dir}")
+        else:
+            pylogger.warning("Did not find attribute test_nmapes to save values.")
 
     def configure_optimizers(self):
         opt = instantiate(
