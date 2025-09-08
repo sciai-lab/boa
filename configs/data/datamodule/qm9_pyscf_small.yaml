@@ -1,0 +1,13 @@
+defaults:
+  - default
+  - dataset: qm9_pyscf
+
+_target_: boa.data.datamodule.ProbeDataModule
+
+batch_size: 
+  train: 12
+  val: 12
+  test: 12
+
+n_probe:
+  train: 5000

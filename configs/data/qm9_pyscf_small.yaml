@@ -1,0 +1,12 @@
+defaults:
+  - datamodule: qm9_pyscf_small
+
+dataset_name: qm9_pyscf
+
+basis_info: 
+  _target_: boa.data.basis_info.BasisInfo.from_atomic_numbers_with_even_tempered_basis
+  basis: ${model.dft_basis_set}
+  atomic_numbers: [1, 6, 7, 8, 9]
+  beta: None
+  even_tempered: ${model.dft_wt_aug}
+  uncontracted: True
