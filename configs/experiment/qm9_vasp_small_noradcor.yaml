@@ -3,4 +3,5 @@
 defaults:
   - override /data: qm9_vasp_small
 
-model.use_radial_corrections: false
+model:
+  use_radial_corrections: false
