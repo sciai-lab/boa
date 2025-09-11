@@ -111,6 +111,7 @@ class GTOs(nn.Module):
 
         self.use_radial_correction = use_radial_correction
         if self.use_radial_correction:
+            print("Using radial correction for GTOs.")
             self.radial_correction = RadialCorrection(expos.shape[0])
 
         # assumes Ls are sorted
