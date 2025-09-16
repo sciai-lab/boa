@@ -94,7 +94,7 @@ def build_molecule_np(
     charges: np.ndarray,
     positions: np.ndarray,
     basis: str | dict | None = "6-31G(2df,p)",
-    unit: str = "Bohr",
+    unit: str = "Angstrom",
     output: Optional[str] = None,
     spin: Optional[int] = None,
 ) -> gto.Mole:
@@ -202,7 +202,7 @@ def build_molecule_ofdata(
         charges=charges,
         positions=positions,
         basis=basis,
-        unit="Bohr",
+        unit="Angstrom",
         spin=spin,
     )
 

@@ -494,7 +494,7 @@ class OFData(Data):
 
         sample = cls.construct_new(
             basis_info=basis_info,
-            pos=mol.atom_coords(),
+            pos=mol.atom_coords(unit="Angstrom"),
             atomic_numbers=mol.atom_charges(),
             coeffs=np.zeros(mol.nao),
             add_irreps=basis_info is not None,
