@@ -18,6 +18,43 @@ element_symbols_to_numbers = pyscf.data.elements.ELEMENTS_PROTON
 pylogger = logging.getLogger(__name__)
 
 
+def get_probe_chunks(n_probes, max_n_probe_per_pass):
+    batch_size = len(n_probes)
+    n_per_pass = []
+    probes_to_process = []
+    n_probes = torch.clone(n_probes)
+    probe_indices = torch.arange(n_probes.sum(), device=n_probes.device)
+
+    n_pass = ((n_probes).sum() / max_n_probe_per_pass).ceil().long()
+    pass_start_index = 0
+    pass_end_index = 0
+    for _ in range(n_pass):
+        current_pass = torch.zeros(batch_size, dtype=torch.long, device=n_probes.device)
+        current_load = 0
+
+        for i in range(batch_size):
+            if n_probes[i] == 0:
+                continue
+            max_points_for_job = max_n_probe_per_pass - current_load
+            points_to_process = torch.min(torch.tensor([n_probes[i], max_points_for_job]))
+
+            current_load += points_to_process
+            current_pass[i] = points_to_process
+            pass_end_index += int(points_to_process)
+
+            # in-place modification done last
+            n_probes[i] -= points_to_process
+
+            if current_load >= max_n_probe_per_pass:
+                break
+        n_per_pass.append(current_pass)
+        probes_to_process.append(probe_indices[pass_start_index:pass_end_index])
+        pass_start_index = pass_end_index
+        pass_end_index = pass_start_index
+
+    return n_pass, n_per_pass, probes_to_process
+
+
 class ChgLightningModule(LightningModule):
     """
     Charge density prediction with the probe point method.
@@ -303,11 +340,26 @@ class ChgLightningModule(LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        loss, pred, target, _, _ = self(batch)
+        # loss, pred, target, _ = self(batch)
+        # nmape = get_nmape(
+        #     pred,
+        #     target,
+        #     torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe),
+        # )
+        coeffs, edge_index = self.model(batch)
+        n_pass, n_per_pass, probes_to_process = get_probe_chunks(batch.n_probe, 10000)
+        all_preds = []
+        for i_pass in range(n_pass):
+            n_probe = n_per_pass[i_pass]
+            probe_idx = probes_to_process[i_pass]
+            probe_coords = batch.probe_coords[probe_idx]
+            pred = self.orbital_inference(batch, coeffs, n_probe, probe_coords, edge_index)
+            all_preds.append(pred)
+        all_preds = torch.cat(all_preds, dim=0)
         nmape = get_nmape(
-            pred,
-            target,
-            torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe),
+            all_preds,
+            batch.chg_labels,
+            torch.arange(len(batch), device=all_preds.device).repeat_interleave(batch.n_probe),
         )
         # Collect individual NMAPE values for saving
         if hasattr(self, "test_nmapes"):
@@ -315,11 +367,11 @@ class ChgLightningModule(LightningModule):
 
         nmape_mean = nmape.mean()
         self.log_dict(
-            {"loss/test": loss, "nmape/test": nmape_mean},
+            {"nmape/test": nmape_mean},
             batch_size=batch["cell"].shape[0],
             sync_dist=self.distributed,
         )
-        return loss
+        return nmape_mean
 
     def on_test_start(self):
         """Initialize list to collect NMAPE values at the start of testing."""

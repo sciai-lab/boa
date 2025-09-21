@@ -3,7 +3,7 @@ transforms:
   - _target_: boa.data.transforms.ToTorch
 
   - _target_: boa.data.transforms.AddMessagePassingMatrix
-    basis_info: ${model.basis_info}
+    basis_info: ${data.basis_info}
     type: overlap
     remove_diagonal: False
 
@@ -12,7 +12,7 @@ transforms:
     name: message_edge_index
 
   - _target_: boa.data.transforms.AddEdgeMatrices
-    basis_info: ${model.basis_info}
+    basis_info: ${data.basis_info}
     edge_name: ${..2.name}
     name: message_edge_matrices
 
@@ -21,7 +21,7 @@ transforms:
     name: edge_index
 
   - _target_: boa.data.transforms.AddEdgeMatrices
-    basis_info: ${model.basis_info}
+    basis_info: ${data.basis_info}
     edge_name: ${..4.name}
     name: edge_matrices
     

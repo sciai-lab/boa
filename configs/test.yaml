@@ -8,15 +8,11 @@ defaults:
   - callbacks: default
   - logger: tensorboard
   - _self_
-  - experiment: null
-  - debug: null
-  - override data/transforms: test
+  - eval: null
 
-name: qm9_small
+name: test_qm9_small
 
 task_name: test
-
-
 
 conventions:
   x_key: 'x'

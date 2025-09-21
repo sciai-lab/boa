@@ -41,7 +41,6 @@ def run(cfg: DictConfig):
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(
         cfg.data.datamodule, _recursive_=False
     )
-    datamodule.setup(stage="test")
 
     callbacks: List[Callback] = build_callbacks(cfg.callbacks)
     logger = TensorBoardLogger(**cfg.logger.tensorboard)

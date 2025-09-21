@@ -1,0 +1,13 @@
+# @package _global_
+
+defaults:
+  - md
+
+data:
+  basis_info:
+    atomic_numbers: [1, 6, 8]
+  datamodule:
+    dataset:
+      mol_name: ethanol
+
+ckpt_path: "/export/scratch/mklockow/boa/models/train/runs/450_qm9_small_benzene__seed-4/epoch=1269-step=96520.ckpt"

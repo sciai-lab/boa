@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import hydra
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
 from omegaconf import DictConfig
 from torch.utils.data import Dataset, Subset

@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - override /data: md
+
+data:
+  datamodule:
+    dataset:
+      n_probe: null

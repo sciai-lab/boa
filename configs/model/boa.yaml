@@ -2,8 +2,8 @@ _target_: boa.model.module.ChgLightningModule
 
 criterion: mae
 pbc: false
-dft_basis_set: 'def2-qzvppd'
-dft_wt_aug: false
+dft_basis_set: ${data.basis_info.basis}
+dft_wt_aug: ${data.basis_info.even_tempered}
 concat_basis: false
 beta: None
 orb_cutoff: 3.0
