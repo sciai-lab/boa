@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -8,6 +9,8 @@ import hydra
 import omegaconf
 import rootutils
 from omegaconf import DictConfig, ListConfig
+
+from mldft.utils.counter_file import get_and_increment_counter
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
@@ -104,7 +107,9 @@ def main(cfg: omegaconf.DictConfig):
                 run_number = checkpoint_path_to_run_number(cfg.ckpt_path)
                 with omegaconf.open_dict(cfg):
                     output_dir = Path(cfg.paths.output_dir)
-                    test_run_number = int(output_dir.name.split("_")[0]) + i
+                    test_run_number = get_and_increment_counter(
+                        os.path.join(output_dir.parent, ".run_counter")
+                    )
                     output_dir = str(
                         output_dir.parent
                         / (f"{test_run_number:03d}_" + output_dir.name.split("_", 1)[1])
