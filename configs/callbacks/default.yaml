@@ -1,9 +1,9 @@
 # Simplified callbacks for SLURM compatibility
-- _target_: lightning.pytorch.callbacks.EarlyStopping
-  patience: 10000
-  verbose: False
-  monitor: ${monitor.metric}
-  mode: ${monitor.mode}
+# - _target_: lightning.pytorch.callbacks.EarlyStopping
+#   patience: 10000
+#   verbose: False
+#   monitor: ${monitor.metric}
+#   mode: ${monitor.mode}
 
 - _target_: lightning.pytorch.callbacks.ModelCheckpoint
   dirpath: ${paths.output_dir}
