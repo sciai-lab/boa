@@ -37,3 +37,12 @@ monitor:
 log_train_nmape_interval: 10
 
 ckpt_path: null
+
+max_n_probe_per_pass: 20000
+
+data:
+  datamodule:
+    batch_size: 
+      train: 1
+      val: 1
+      test: 1

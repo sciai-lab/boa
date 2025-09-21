@@ -65,6 +65,7 @@ def run(cfg: DictConfig):
     model = ChgLightningModule.load_from_checkpoint(checkpoint_path=ckpt_path).to("cuda")
     model.eval()
     model.ema.copy_to(model.parameters())
+    model.max_n_probe_per_pass = cfg.get("max_n_probe_per_pass", 10000)
 
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(
         cfg.data.datamodule, _recursive_=False
@@ -97,6 +98,7 @@ def main(cfg: omegaconf.DictConfig):
     else:
         ckpt_paths = cfg.ckpt_path
 
+    output_dirs = []
     for i, ckpt_path in enumerate(ckpt_paths):
         cfg = cfg_full.copy()
         with omegaconf.open_dict(cfg):
@@ -115,10 +117,13 @@ def main(cfg: omegaconf.DictConfig):
                         / (f"{test_run_number:03d}_" + output_dir.name.split("_", 1)[1])
                     )
                     cfg.paths.output_dir = output_dir + f"_from_{run_number}"
+                    output_dirs.append(cfg.paths.output_dir)
             run(cfg)
         except Exception:
             traceback.print_exc(file=sys.stderr)
             raise
+    print("All output dirs:")
+    print(output_dirs)
 
 
 if __name__ == "__main__":

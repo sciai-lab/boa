@@ -340,14 +340,14 @@ class ChgLightningModule(LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
-        # loss, pred, target, _ = self(batch)
-        # nmape = get_nmape(
-        #     pred,
-        #     target,
-        #     torch.arange(len(batch), device=target.device).repeat_interleave(batch.n_probe),
-        # )
+        if hasattr(self, "max_n_probe_per_pass"):
+            max_n_probe_per_pass = self.max_n_probe_per_pass
+        else:
+            max_n_probe_per_pass = 10000
         coeffs, edge_index = self.model(batch)
-        n_pass, n_per_pass, probes_to_process = get_probe_chunks(batch.n_probe, 10000)
+        n_pass, n_per_pass, probes_to_process = get_probe_chunks(
+            batch.n_probe, max_n_probe_per_pass
+        )
         all_preds = []
         for i_pass in range(n_pass):
             n_probe = n_per_pass[i_pass]
