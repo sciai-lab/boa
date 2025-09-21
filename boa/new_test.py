@@ -34,10 +34,12 @@ def run(cfg: DictConfig):
     # check if ckpt_path ends with .ckpt
     if not cfg.get("ckpt_path", "").endswith(".ckpt"):
         # check for best_model_path.txt in the ckpt_path directory
-        best_model_path = Path(cfg.ckpt_path) / "best_model_path.txt"
-        if best_model_path.exists():
-            with open(best_model_path, "r") as f:
-                ckpt_path = f.read().strip()
+        best_model_path_file = Path(cfg.ckpt_path) / "best_model_path.txt"
+        if best_model_path_file.exists():
+            with open(best_model_path_file, "r") as f:
+                best_model_path = f.read().strip()
+                ckpt_file = Path(best_model_path).name
+                ckpt_path = Path(best_model_path_file).parent / ckpt_file
             pylogger.info(f"Using best model: {ckpt_path}")
         else:
             raise ValueError(
