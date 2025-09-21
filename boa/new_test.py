@@ -7,11 +7,11 @@ from typing import List
 import hydra
 import omegaconf
 import rootutils
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-import boa.utils.omegaconf_resolvers  # noqa E402
+from boa.utils.omegaconf_resolvers import checkpoint_path_to_run_number  # noqa E402
 from mldft.utils.log_utils.config_in_tensorboard import dict_to_tree  # noqa E402
 
 
@@ -31,7 +31,30 @@ def run(cfg: DictConfig):
     pylogger = logging.getLogger(__name__)
     seed_everything(42)
 
-    ckpt_path = Path(cfg.ckpt_path)
+    # check if ckpt_path ends with .ckpt
+    if not cfg.get("ckpt_path", "").endswith(".ckpt"):
+        # check for best_model_path.txt in the ckpt_path directory
+        best_model_path = Path(cfg.ckpt_path) / "best_model_path.txt"
+        if best_model_path.exists():
+            with open(best_model_path, "r") as f:
+                ckpt_path = f.read().strip()
+            pylogger.info(f"Using best model: {ckpt_path}")
+        else:
+            raise ValueError(
+                f"ckpt_path {cfg.ckpt_path} is not a .ckpt file and best_model_path.txt not found."
+            )
+    else:
+        # check if best_model_path.txt exists in the same directory as ckpt_path
+        best_model_path = Path(cfg.ckpt_path).parent / "best_model_path.txt"
+        if best_model_path.exists():
+            # check if the best_model_path is different from the ckpt_path
+            with open(best_model_path, "r") as f:
+                best_ckpt_path = f.read().strip()
+            if best_ckpt_path != cfg.ckpt_path:
+                pylogger.info(
+                    f"Warning: ckpt_path {cfg.ckpt_path} is not the best model. {best_ckpt_path} is the best model."
+                )
+        ckpt_path = Path(cfg.ckpt_path)
     # pylint: disable=E1120
     pylogger.info(f"loaded checkpoint: {ckpt_path}")
     model = ChgLightningModule.load_from_checkpoint(checkpoint_path=ckpt_path).to("cuda")
@@ -62,11 +85,33 @@ def run(cfg: DictConfig):
     version_base="1.3",
 )
 def main(cfg: omegaconf.DictConfig):
-    try:
-        run(cfg)
-    except Exception:
-        traceback.print_exc(file=sys.stderr)
-        raise
+    # check if there is a list of ckpt_paths
+    cfg_full = cfg.copy()
+    if not isinstance(cfg.ckpt_path, (ListConfig, list)):
+        ckpt_paths = [cfg.ckpt_path]
+    else:
+        ckpt_paths = cfg.ckpt_path
+
+    for i, ckpt_path in enumerate(ckpt_paths):
+        cfg = cfg_full.copy()
+        with omegaconf.open_dict(cfg):
+            cfg.ckpt_path = ckpt_path
+        try:
+            # append from_runnumber to hydra.run.dir if ckpt_path is given
+            if cfg.get("ckpt_path") is not None:
+                run_number = checkpoint_path_to_run_number(cfg.ckpt_path)
+                with omegaconf.open_dict(cfg):
+                    output_dir = Path(cfg.paths.output_dir)
+                    test_run_number = int(output_dir.name.split("_")[0]) + i
+                    output_dir = str(
+                        output_dir.parent
+                        / (f"{test_run_number:03d}_" + output_dir.name.split("_", 1)[1])
+                    )
+                    cfg.paths.output_dir = output_dir + f"_from_{run_number}"
+            run(cfg)
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            raise
 
 
 if __name__ == "__main__":

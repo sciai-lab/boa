@@ -10,7 +10,7 @@ defaults:
   - _self_
   - eval: null
 
-name: test_qm9_small
+name: test
 
 task_name: test
 

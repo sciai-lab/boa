@@ -187,7 +187,7 @@ def checkpoint_path_to_run_number(ckpt_path: str) -> str:
     """
     try:
         parts = ckpt_path.split("/")
-        run_name = parts[-3]
+        run_name = parts[-1]
         run_number = run_name.split("_")[0]
         int(run_number)  # make sure it is an integer, but do not return int to keep leading zeros
         return run_number

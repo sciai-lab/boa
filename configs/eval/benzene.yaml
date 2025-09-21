@@ -8,4 +8,7 @@ data:
     dataset:
       mol_name: benzene
 
-ckpt_path: "/export/scratch/mklockow/boa/models/train/runs/450_qm9_small_benzene__seed-4/epoch=1269-step=96520.ckpt"
+ckpt_path:
+  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_43/10061487_benzene_slurm__seed-2"
+  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_44/10061488_benzene_slurm__seed-3"
+  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_45/10061489_benzene_slurm__seed-4"

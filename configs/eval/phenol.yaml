@@ -10,4 +10,7 @@ data:
     dataset:
       mol_name: phenol
 
-ckpt_path: "/export/scratch/mklockow/boa/models/train/runs/450_qm9_small_benzene__seed-4/epoch=1269-step=96520.ckpt"
+ckpt_path: 
+  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_30/10061472_phenol_slurm__seed-2"
+  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_32/10061476_phenol_slurm__seed-3"
+  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_33/10061477_phenol_slurm__seed-4"
