@@ -163,6 +163,39 @@ class GTOs(nn.Module):
         lognorm = (numerator - denominator) / 2
         return lognorm
 
+    def compute_radial(self, r, expo_scaling=None, index_atom=None):
+        """
+        Compute only the radial part of the GTOs, excluding spherical harmonics.
+        
+        Args:
+            vecs: displacement vectors (N x 3)
+            expo_scaling: optional exponent scaling factors
+            index_atom: atom indices for expo_scaling
+            
+        Returns:
+            radial: radial part of GTOs (N x n_orbitals)
+        """
+        if expo_scaling is None:
+            exponent = -self.expos * (r * r)
+            normalization = torch.ones_like(r) * self.lognorm
+        else:
+            expos = self.expos.view(1, -1) * expo_scaling
+            exponent = -expos[index_atom] * (r * r)
+            normalization = self._generate_lognorm(expos)[index_atom]
+        poly = self.Ls * torch.log(r)
+        log = exponent + poly
+
+        if self.normalize:
+            radial = torch.exp(log + normalization)  # * self.coeffs
+        else:
+            radial = self.coeffs * torch.exp(log)
+
+        correction = self.radial_correction(r)
+        if self.use_radial_correction:
+            corrected = radial * (1 + correction)
+
+        return radial, correction, corrected
+
     def compute(self, vecs, expo_scaling=None, index_atom=None):
         # multiple r's will be the same here, so only calculate unique ones and index them later
         # first find the unique r's and the inverse index
