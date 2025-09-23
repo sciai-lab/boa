@@ -166,12 +166,12 @@ class GTOs(nn.Module):
     def compute_radial(self, r, expo_scaling=None, index_atom=None):
         """
         Compute only the radial part of the GTOs, excluding spherical harmonics.
-        
+
         Args:
             vecs: displacement vectors (N x 3)
             expo_scaling: optional exponent scaling factors
             index_atom: atom indices for expo_scaling
-            
+
         Returns:
             radial: radial part of GTOs (N x n_orbitals)
         """
