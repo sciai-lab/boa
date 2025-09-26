@@ -1,3 +1,7 @@
+notebooks/*.png
+notebooks/plots
+notebooks/plots_hd
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
