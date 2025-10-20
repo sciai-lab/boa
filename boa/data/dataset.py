@@ -290,7 +290,7 @@ class PyscfDataset(Dataset):
 
     def __getitem__(self, index):
         # fill index with 0 to 6 digits
-        item_path = self.path / f"dsgdb9nsd_{index + 1:06d}"
+        item_path = self.path / f"dsgdb9nsd_{index:06d}"
         data = read_pyscf(item_path)
 
         data = AtomicData.build_graph_with_vnodes(*data, self.z_table, vnode_method="None")
