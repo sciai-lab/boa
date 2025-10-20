@@ -1,5 +1,6 @@
 from functools import partial
 
+import e3nn
 import numpy as np
 import torch
 
@@ -30,6 +31,17 @@ class SampleProbe:
 
     def __call__(self, sample):
         sample = sample.sample_probe(n_probe=min(self.n_probe, sample.n_probe))
+        return sample
+
+
+class RandomRotateMol:
+    def __init__(self):
+        self.rotation_matrix = e3nn.o3.rand_matrix()
+
+    def __call__(self, sample):
+        sample.pos = sample.pos @ self.rotation_matrix.T
+        sample.probe_coords = sample.probe_coords @ self.rotation_matrix.T
+        sample.rot_mat = self.rotation_matrix
         return sample
 
 
