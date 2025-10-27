@@ -5,5 +5,8 @@ defaults:
   - override /data/datamodule/dataset/transform: test_default
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/442_qm9_small__localscratch_mklockow_qm9_charge_density_gkc___qm9_pyscf__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/462_qm9_small_qm9_pyscf__seed-4"
+  # - "/export/scratch/mklockow/boa/models/train/runs/442_qm9_small__localscratch_mklockow_qm9_charge_density_gkc___qm9_pyscf__seed-3"
+  # - "/export/scratch/mklockow/boa/models/train/runs/462_qm9_small_qm9_pyscf__seed-4"
+  - "/export/scratch/mklockow/boa/models/train/runs/484_qm9_small__localscratch_mklockow_qm9_charge_density_gkc___qm9_pyscf__seed-2"
+  - "/export/scratch/mklockow/boa/models/train/runs/485_qm9_small__localscratch_mklockow_qm9_charge_density_gkc___qm9_pyscf__seed-3"
+  - "/export/scratch/mklockow/boa/models/train/runs/487_qm9_small_qm9_pyscf__seed-4"
