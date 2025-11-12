@@ -5,4 +5,4 @@ defaults:
   - override /data/datamodule/dataset/transform: large_cutoff
 
 model:
-  orb_cutoff: 5.0
+  orb_cutoff: 4.0

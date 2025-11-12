@@ -23,7 +23,7 @@ transforms:
     name: message_edge_matrices
 
   - _target_: boa.data.transforms.AddRadiusEdgeIndex
-    radius: 5.0
+    radius: 4.0
     name: edge_index
 
   - _target_: boa.data.transforms.AddEdgeMatrices
