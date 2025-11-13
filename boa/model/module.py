@@ -9,7 +9,7 @@ from lightning import LightningModule
 from numpy import sort
 from torch_ema import ExponentialMovingAverage
 
-from boa.model.gtos import MAX_L, GTOs
+from boa.model.gtos import GTOs
 from scdp.common.utils import scatter
 from scdp.model.basis_set import basis_from_pyscf
 from scdp.model.utils import get_nmape
@@ -112,44 +112,46 @@ class ChgLightningModule(LightningModule):
         )
         self.gto_dict = torch.nn.ModuleDict(gto_dict)
 
-        contract_dict = {}
-        for k, v in gto_dict.items():
-            gto = v
-            con_per_l = []
-            for l in range(MAX_L + 1):
-                l_mask = gto.Ls == l
-                num_contracted = (
-                    (
-                        scatter(
-                            l_mask.to(dtype=torch.int64),
-                            torch.tensor(gto.contraction, dtype=torch.int64),
-                            int(gto.contraction.max().item()) + 1,
-                        )
-                    )
-                    .sum()
-                    .item()
-                )
-                num_contracted = num_contracted - torch.unique(gto.contraction[l_mask]).numel()
-                con_per_l.append(num_contracted)
-            contract_dict[k] = torch.tensor(con_per_l, dtype=torch.int64)
+        # contract_dict = {}
+        # for k, v in gto_dict.items():
+        #     gto = v
+        #     con_per_l = []
+        #     for l in range(MAX_L + 1):
+        #         l_mask = gto.Ls == l
+        #         num_contracted = (
+        #             (
+        #                 scatter(
+        #                     l_mask.to(dtype=torch.int64),
+        #                     torch.tensor(gto.contraction, dtype=torch.int64),
+        #                     int(gto.contraction.max().item()) + 1,
+        #                 )
+        #             )
+        #             .sum()
+        #             .item()
+        #         )
+        #         num_contracted = num_contracted - torch.unique(gto.contraction[l_mask]).numel()
+        #         con_per_l.append(num_contracted)
+        #     contract_dict[k] = torch.tensor(con_per_l, dtype=torch.int64)
 
-        self.Lmax = max([gto.Lmax for gto in self.gto_dict.values()])
-        self.max_n_Ls = max(
-            [len(gto.Ls) - contract_dict[k].sum() for k, gto in self.gto_dict.items()]
-        )
-        self.max_n_orbitals_per_L = torch.stack(
-            [x.n_orbitals_per_L - contract_dict[k] for k, x in self.gto_dict.items()]
-        ).max(dim=0)[0]
-        self.outdim_per_L = (
-            torch.stack([x.n_orbitals_per_L - contract_dict[k] for k, x in self.gto_dict.items()])
-            * (2 * torch.arange(MAX_L + 1) + 1)[None, :]
-        )
-        self.max_outdim_per_L = self.max_n_orbitals_per_L * (
-            2 * torch.arange(len(self.max_n_orbitals_per_L)) + 1
-        )
-        self.max_outdim = int(self.max_outdim_per_L.sum())
+        # self.Lmax = max([gto.Lmax for gto in self.gto_dict.values()])
+        # self.max_n_Ls = max(
+        #     [len(gto.Ls) - contract_dict[k].sum() for k, gto in self.gto_dict.items()]
+        # )
+        # self.max_n_orbitals_per_L = torch.stack(
+        #     [x.n_orbitals_per_L - contract_dict[k] for k, x in self.gto_dict.items()]
+        # ).max(dim=0)[0]
+        # self.outdim_per_L = (
+        #     torch.stack([x.n_orbitals_per_L - contract_dict[k] for k, x in self.gto_dict.items()])
+        #     * (2 * torch.arange(MAX_L + 1) + 1)[None, :]
+        # )
+        # self.max_outdim_per_L = self.max_n_orbitals_per_L * (
+        #     2 * torch.arange(len(self.max_n_orbitals_per_L)) + 1
+        # )
+        # self.max_outdim = int(self.max_outdim_per_L.sum())
 
-        orb_index = torch.zeros(max(unique_atom_types) + 1, self.max_outdim, dtype=torch.bool)
+        orb_index = torch.zeros(
+            max(unique_atom_types) + 1, max(self.basis_info.basis_dim_per_atom), dtype=torch.bool
+        )
         for i in range(len(unique_atom_types)):
             orb_index[int(unique_atom_types[i]), : self.basis_info.basis_dim_per_atom[i]] = True
         self.register_buffer("orb_index", orb_index)
