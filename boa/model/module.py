@@ -66,7 +66,10 @@ class ChgLightningModule(LightningModule):
         self.basis_info = instantiate(self.hparams.basis_info)
         self.abs_scale = self.hparams.abs_scale
         self.use_abs = self.hparams.use_abs
-        self.linear_basis = self.hparams.linear_basis
+        if hasattr(self.hparams, "linear_basis"):
+            self.linear_basis = self.hparams.linear_basis
+        else:
+            self.linear_basis = False
         self.construct_orbitals()
         self.model = instantiate(
             self.hparams.net,
