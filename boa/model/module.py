@@ -66,6 +66,7 @@ class ChgLightningModule(LightningModule):
         self.basis_info = instantiate(self.hparams.basis_info)
         self.abs_scale = self.hparams.abs_scale
         self.use_abs = self.hparams.use_abs
+        self.linear_basis = self.hparams.linear_basis
         self.construct_orbitals()
         self.model = instantiate(
             self.hparams.net,
@@ -286,12 +287,72 @@ class ChgLightningModule(LightningModule):
 
         return pred
 
+    def orbital_inference_linear(self, batch, coeffs, n_probe, probe_coords, edge_index):
+        """
+        Compute chg values at given probe points using <coeffs>.
+        Inputs:
+            - batch: batch (bsz B) object, N atoms
+            - coeffs: orbital coefficients (N, max_orbital_outdim)
+            - n_probes: number of probes for each batch (B,)
+            - probe_coords: probe coordinates (M, 3)
+        Outputs:
+            - orbitals: chg values at probe points, (M,)
+        """
+        unique_atom_types = torch.unique(batch.atomic_numbers)
+
+        batch_perm = torch.argsort(batch.batch[edge_index[0]])
+        edge_index = edge_index[:, batch_perm]
+        coeffs = coeffs[batch_perm]
+
+        full_pred = None
+        for i in unique_atom_types:
+            n_edge = scatter(
+                torch.ones_like(edge_index[0]), batch.batch[edge_index[0]], dim_size=len(batch)
+            )
+            n_edge_i = scatter(
+                (batch.atomic_numbers[edge_index[0]] == i).long(),
+                torch.arange(len(batch), device=batch.atomic_numbers.device).repeat_interleave(
+                    n_edge
+                ),
+                len(batch),
+            )
+            orb_index = self.orb_index[i.item()]
+
+            pred = self.gto_dict[str(i.item())](
+                probe_coords=probe_coords,
+                atom_coords=batch.pos[edge_index[0, batch.atomic_numbers[edge_index[0]] == i]],
+                n_probes=n_probe,
+                n_atoms=n_edge_i,
+                coeffs=coeffs[batch.atomic_numbers[edge_index[0]] == i][:, orb_index],
+                expo_scaling=None,
+                pbc=self.pbc,
+                cell=batch.cell,
+                return_full=False,
+                second_cutoff_atom_coords=None,
+            )
+
+            if full_pred is None:
+                full_pred = pred
+            else:
+                full_pred = full_pred + pred
+
+        pred = full_pred.sum(-1)
+        pred = pred * self.scale
+
+        return pred
+
     def forward(self, batch):
         # move everything to dtype that is not long
         coeffs, edge_index = self.model(batch)
-        pred = self.orbital_inference(
-            batch, coeffs, batch.n_probe, batch.probe_coords, edge_index=edge_index
-        )
+        if self.linear_basis:
+            coeffs = torch.chunk(coeffs, 2, dim=-1)[0]
+            pred = self.orbital_inference_linear(
+                batch, coeffs, batch.n_probe, batch.probe_coords, edge_index=edge_index
+            )
+        else:
+            pred = self.orbital_inference(
+                batch, coeffs, batch.n_probe, batch.probe_coords, edge_index=edge_index
+            )
 
         target = batch.chg_labels
         if self.hparams.criterion == "mse":
