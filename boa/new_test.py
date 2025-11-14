@@ -62,7 +62,7 @@ def run(cfg: DictConfig):
         ckpt_path = Path(cfg.ckpt_path)
     # pylint: disable=E1120
     pylogger.info(f"loaded checkpoint: {ckpt_path}")
-    model = ChgLightningModule.load_from_checkpoint(checkpoint_path=ckpt_path).to("cuda")
+    model = ChgLightningModule.load_from_checkpoint(checkpoint_path=ckpt_path)
     model.eval()
     model.ema.copy_to(model.parameters())
     model.max_n_probe_per_pass = cfg.get("max_n_probe_per_pass", 10000)

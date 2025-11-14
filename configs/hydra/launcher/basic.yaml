@@ -1,2 +1,0 @@
-# @package hydra.launcher
-_target_: hydra._internal.BasicLauncher
