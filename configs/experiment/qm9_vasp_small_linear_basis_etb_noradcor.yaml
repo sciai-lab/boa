@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - override /data: qm9_vasp_small_etb
+
+model:
+  linear_basis: true
+  use_radial_correction: false
