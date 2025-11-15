@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - override /data: qm9_vasp_small
+
+data:
+  basis_info:
+    basis: "def2-TZVP"
