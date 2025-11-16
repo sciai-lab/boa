@@ -2,8 +2,8 @@
 
 defaults:
   - override /data: qm9_vasp_small
-  - override /data/datamodule/dataset/transform: test_default
-  
+  - override /data/datamodule/dataset/transform: test_large_cutoff
+
 
 ckpt_path: 
   - "/export/scratch/mklockow/boa/models/train/runs/503_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp_small_large_cutoff__seed-2"
