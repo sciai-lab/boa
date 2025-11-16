@@ -282,15 +282,16 @@ def read_pyscf(folder_path):
 
 
 class PyscfDataset(Dataset):
-    def __init__(self, path, transform=None):
+    def __init__(self, path, transform=None, prefix="dsgdb9nsd_"):
         super().__init__()
         self.path = Path(path)
         self.z_table = get_atomic_number_table_from_zs(np.arange(100).tolist())
         self.transform = transform
+        self.prefix = prefix
 
     def __getitem__(self, index):
         # fill index with 0 to 6 digits
-        item_path = self.path / f"dsgdb9nsd_{index:06d}"
+        item_path = self.path / f"{self.prefix}{index:06d}"
         data = read_pyscf(item_path)
 
         data = AtomicData.build_graph_with_vnodes(*data, self.z_table, vnode_method="None")

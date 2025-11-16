@@ -106,7 +106,10 @@ def main(cfg: omegaconf.DictConfig):
         try:
             # append from_runnumber to hydra.run.dir if ckpt_path is given
             if cfg.get("ckpt_path") is not None:
-                run_number = checkpoint_path_to_run_number(cfg.ckpt_path)
+                try:
+                    run_number = checkpoint_path_to_run_number(cfg.ckpt_path)
+                except Exception:
+                    run_number = cfg.ckpt_path[:5]
                 with omegaconf.open_dict(cfg):
                     output_dir = Path(cfg.paths.output_dir)
                     test_run_number = get_and_increment_counter(

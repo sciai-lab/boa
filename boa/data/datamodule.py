@@ -69,7 +69,10 @@ class DataModule(pl.LightningDataModule):
                 with open(self.dataset.path / "metadata_full.json", "r") as fp:
                     self.metadata = json.load(fp)
             else:
-                self.metadata = self.get_metadata()
+                if len(self.train_dataset) > 0:
+                    self.metadata = self.get_metadata()
+                else:
+                    self.metadata = {}
         else:
             # Take 10 % of training as validation
             full_train_dataset = self.dataset(split="train")
