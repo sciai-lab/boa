@@ -75,6 +75,7 @@ class ChgLightningModule(LightningModule):
             self.hparams.net,
         )
         print(self.model)
+        print(f"self.linear_basis: {self.linear_basis}")
 
         self.ema = ExponentialMovingAverage(self.parameters(), decay=self.hparams.train.ema.decay)
         self.distributed = (self.hparams.train.trainer.strategy == "ddp") and (
@@ -419,7 +420,13 @@ class ChgLightningModule(LightningModule):
             n_probe = n_per_pass[i_pass]
             probe_idx = probes_to_process[i_pass]
             probe_coords = batch.probe_coords[probe_idx]
-            pred = self.orbital_inference(batch, coeffs, n_probe, probe_coords, edge_index)
+            if self.linear_basis:
+                coeffs_lin = torch.chunk(coeffs, 2, dim=-1)[0]
+                pred = self.orbital_inference_linear(
+                    batch, coeffs_lin, n_probe, probe_coords, edge_index=edge_index
+                )
+            else:
+                pred = self.orbital_inference(batch, coeffs, n_probe, probe_coords, edge_index)
             all_preds.append(pred)
         all_preds = torch.cat(all_preds, dim=0)
         nmape = get_nmape(
