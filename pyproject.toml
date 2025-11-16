@@ -1,3 +1,32 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boa"
+version = "0.0.1"
+description = "Basis Overlap Architecture (BOA)"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [
+    {name = "Manuel V. Klockow", email = "manuel.klockow@iwr.uni-heidelberg.de"}
+]
+dependencies = [
+    "lightning",
+    "hydra-core",
+]
+
+[project.urls]
+Homepage = "https://github.com/ManuelHei/boa"
+
+# [project.scripts]
+# train_command = "boa.train:main"
+# eval_command = "boa.eval:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["boa*"]
+
 [tool.pytest.ini_options]
 addopts = [
   "--color=yes",
