@@ -9,7 +9,7 @@ setup(
     author="Manuel V. Klockow",
     author_email="manuel.klockow@iwr.uni-heidelberg.de",
     url="https://github.com/ManuelHei/boa",
-    install_requires=["lightning", "hydra-core"],
+    install_requires=[],
     packages=find_packages(),
     # use this to customize global commands available in the terminal after installing the package
     # entry_points={

@@ -1,4 +1,5 @@
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
@@ -6,6 +7,7 @@ import pyscf
 import torch
 from hydra.utils import instantiate
 from lightning import LightningModule
+from lightning.pytorch.callbacks.progress.tqdm_progress import TQDMProgressBar
 from numpy import sort
 from torch_ema import ExponentialMovingAverage
 
@@ -406,6 +408,9 @@ class ChgLightningModule(LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        start = time.perf_counter()
         if hasattr(self, "max_n_probe_per_pass"):
             max_n_probe_per_pass = self.max_n_probe_per_pass
         else:
@@ -421,6 +426,12 @@ class ChgLightningModule(LightningModule):
             probe_coords = batch.probe_coords[probe_idx]
             pred = self.orbital_inference(batch, coeffs, n_probe, probe_coords, edge_index)
             all_preds.append(pred)
+
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        duration = time.perf_counter() - start
+        self.test_durations.append(duration)
+        self._set_eval_progress_bar_postfix(stage="test", duration=np.mean(self.test_durations))
         all_preds = torch.cat(all_preds, dim=0)
         nmape = get_nmape(
             all_preds,
@@ -439,9 +450,47 @@ class ChgLightningModule(LightningModule):
         )
         return nmape_mean
 
+    def on_test_epoch_end(self):
+        avg_duration = sum(self.test_durations) / len(self.test_durations)
+        std_duration = np.std(self.test_durations)
+        self.log("test_time_avg_s", avg_duration, prog_bar=True, add_dataloader_idx=False)
+        self.log("test_time_std_s", std_duration, add_dataloader_idx=False)
+        print(
+            f"Test duration over {len(self.test_durations)} samples: {avg_duration} ± {std_duration} seconds."
+        )
+        self._set_eval_progress_bar_postfix(stage="test", duration=avg_duration)
+
+    def _set_eval_progress_bar_postfix(self, stage: str, duration: float) -> None:
+        """Best-effort helper to push timing info into Lightning's tqdm bars."""
+        trainer = getattr(self, "trainer", None)
+        if trainer is None or not getattr(trainer, "is_global_zero", True):
+            return
+
+        callbacks = getattr(trainer, "callbacks", None)
+        if not callbacks:
+            return
+
+        target_attr = {
+            "val": "_val_progress_bar",
+            "test": "_test_progress_bar",
+        }.get(stage)
+        if target_attr is None:
+            return
+
+        display_value = f"{duration:.2f}s"
+        for callback in callbacks:
+            if not isinstance(callback, TQDMProgressBar):
+                continue
+            progress_bar = getattr(callback, target_attr, None)
+            if progress_bar is None or getattr(progress_bar, "disable", False):
+                continue
+            progress_bar.set_postfix({f"{stage}_time": display_value}, refresh=False)
+            break
+
     def on_test_start(self):
         """Initialize list to collect NMAPE values at the start of testing."""
         self.test_nmapes = []
+        self.test_durations = []
 
     def on_test_end(self):
         """Save collected NMAPE values at the end of testing."""
