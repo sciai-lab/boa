@@ -5,6 +5,7 @@ defaults:
   - override /data/datamodule/dataset/transform: test_default
 
 ckpt_path:
-  - "/export/scratch/mklockow/boa/models/train/runs/463_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/438_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/440_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-4"
+  # - "/export/scratch/mklockow/boa/models/train/runs/463_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-2"
+  # - "/export/scratch/mklockow/boa/models/train/runs/438_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-3"
+  # - "/export/scratch/mklockow/boa/models/train/runs/440_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-4"
+  - "/export/scratch/mklockow/boa/models/train/runs/527_qm9_small__localscratch_mklockow_charge_density_lmdb_charge_density_lmdb___qm9_vasp__seed-5"
