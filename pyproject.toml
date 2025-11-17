@@ -7,7 +7,7 @@ name = "boa"
 version = "0.0.1"
 description = "Basis Overlap Architecture (BOA)"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     {name = "Manuel V. Klockow", email = "manuel.klockow@iwr.uni-heidelberg.de"}
 ]
