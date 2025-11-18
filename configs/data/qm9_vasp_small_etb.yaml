@@ -10,3 +10,9 @@ basis_info:
   beta: 2.0
   even_tempered: True
   uncontracted: True
+
+datamodule:
+  num_workers: 
+    train: 16
+    val: 16
+    test: 16
