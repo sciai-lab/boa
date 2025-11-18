@@ -349,6 +349,58 @@ class ChgLightningModule(LightningModule):
 
         return pred
 
+    def orbital_inference_linear_fast(self, batch, coeffs, n_probe, probe_coords, edge_index):
+        """
+        Compute chg values at given probe points using <coeffs>.
+        Inputs:
+            - batch: batch (bsz B) object, N atoms
+            - coeffs: orbital coefficients (N, max_orbital_outdim)
+            - n_probes: number of probes for each batch (B,)
+            - probe_coords: probe coordinates (M, 3)
+        Outputs:
+            - orbitals: chg values at probe points, (M,)
+        """
+        unique_atom_types = torch.unique(batch.atomic_numbers)
+
+        # sum over edges
+        coeffs = scatter(coeffs, edge_index[0], len(batch.atomic_numbers))
+
+        print(coeffs.shape, batch.atomic_numbers.shape)
+
+        full_pred = None
+        for i in unique_atom_types:
+            n_atom_i = scatter(
+                (batch.atomic_numbers == i).long(),
+                torch.arange(len(batch), device=batch.atomic_numbers.device).repeat_interleave(
+                    batch.n_atom
+                ),
+                len(batch),
+            )
+            orb_index = self.orb_index[i.item()]
+
+            pred = self.gto_dict[str(i.item())](
+                probe_coords=probe_coords,
+                atom_coords=batch.pos[batch.atomic_numbers == i],
+                n_probes=n_probe,
+                n_atoms=n_atom_i,
+                coeffs=coeffs[batch.atomic_numbers == i][:, orb_index],
+                expo_scaling=None,
+                pbc=self.pbc,
+                cell=batch.cell,
+                return_full=False,
+                second_cutoff_atom_coords=None,
+            )
+
+            if full_pred is None:
+                full_pred = pred
+            else:
+                full_pred = full_pred + pred
+
+        pred = full_pred
+        pred = pred * self.scale
+
+        return pred
+
     def forward(self, batch):
         # move everything to dtype that is not long
         coeffs, edge_index = self.model(batch)
@@ -440,6 +492,14 @@ class ChgLightningModule(LightningModule):
         self.test_durations.append(duration)
         self._set_eval_progress_bar_postfix(stage="test", duration=np.mean(self.test_durations))
         all_preds = torch.cat(all_preds, dim=0)
+
+        if hasattr(self, "save_test_prediction_folder") and self.save_test_prediction_folder:
+            assert batch.num_graphs == 1, "Saving predictions for batch_size>1 not supported."
+            save_folder = Path(self.save_test_prediction_folder)
+            save_folder.mkdir(parents=True, exist_ok=True)
+            save_path = save_folder / f"{batch.id[0]}.npy"
+            np.save(save_path, all_preds.cpu().numpy())
+
         nmape = get_nmape(
             all_preds,
             batch.chg_labels,

@@ -295,6 +295,7 @@ class PyscfDataset(Dataset):
         data = read_pyscf(item_path)
 
         data = AtomicData.build_graph_with_vnodes(*data, self.z_table, vnode_method="None")
+        data.id = f"{self.prefix}{index:06d}"
         if self.transform is not None:
             data = self.transform(data)
         return data

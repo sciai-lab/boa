@@ -66,6 +66,7 @@ def run(cfg: DictConfig):
     model.eval()
     model.ema.copy_to(model.parameters())
     model.max_n_probe_per_pass = cfg.get("max_n_probe_per_pass", 10000)
+    model.save_test_prediction_folder = cfg.get("save_test_prediction_folder", None)
 
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(
         cfg.data.datamodule, _recursive_=False
