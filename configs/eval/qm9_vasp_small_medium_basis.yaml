@@ -9,6 +9,6 @@ data:
     basis: "def2-TZVP"
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/537_qm9_small_qm9_vasp_small_medium_basis__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/538_qm9_small_qm9_vasp_small_medium_basis__seed-3"
-  # - "/export/scratch/mklockow/boa/models/train/runs/540_qm9_small_qm9_vasp_small_medium_basis__seed-4"
+  # - "/export/scratch/mklockow/boa/models/train/runs/537_qm9_small_qm9_vasp_small_medium_basis__seed-2"
+  # - "/export/scratch/mklockow/boa/models/train/runs/538_qm9_small_qm9_vasp_small_medium_basis__seed-3"
+  - "/export/scratch/mklockow/boa/models/train/runs/540_qm9_small_qm9_vasp_small_medium_basis__seed-4"

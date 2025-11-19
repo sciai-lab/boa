@@ -1,0 +1,8 @@
+# @package _global_
+
+defaults:
+  - override /data: qm9_pyscf_small
+
+data:
+  basis_info:
+    basis: "gth-tzv2p"
