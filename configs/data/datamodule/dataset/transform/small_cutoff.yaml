@@ -1,0 +1,34 @@
+_target_: boa.data.transforms.MasterTransform
+transforms:
+  - _target_: boa.data.transforms.SampleProbe
+    n_probe: ${data.datamodule.n_probe.train}
+
+  - _target_: boa.data.transforms.ConvertToOFData
+    basis_info: ${data.basis_info}
+
+  - _target_: boa.data.transforms.ToTorch
+
+  - _target_: boa.data.transforms.AddMessagePassingMatrix
+    basis_info: ${data.basis_info}
+    type: overlap
+    remove_diagonal: False
+
+  - _target_: boa.data.transforms.AddRadiusEdgeIndex
+    radius: 3.0
+    name: message_edge_index
+
+  - _target_: boa.data.transforms.AddEdgeMatrices
+    basis_info: ${data.basis_info}
+    edge_name: ${..4.name}
+    name: message_edge_matrices
+
+  - _target_: boa.data.transforms.AddRadiusEdgeIndex
+    radius: 2.0
+    name: edge_index
+
+  - _target_: boa.data.transforms.AddEdgeMatrices
+    basis_info: ${data.basis_info}
+    edge_name: ${..6.name}
+    name: edge_matrices
+    
+  - _target_: boa.data.transforms.ToTorch
