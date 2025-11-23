@@ -76,7 +76,7 @@ class ChgLightningModule(LightningModule):
         self.model = instantiate(
             self.hparams.net,
         )
-        print(self.model)
+        # print(self.model)
         print(f"self.linear_basis: {self.linear_basis}")
 
         self.ema = ExponentialMovingAverage(self.parameters(), decay=self.hparams.train.ema.decay)
