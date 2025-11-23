@@ -522,6 +522,7 @@ class ChgLightningModule(LightningModule):
             self.test_results.append(
                 {
                     "dataset_idx": i,
+                    "id": batch.id[i],
                     "nmape": nmape,
                     "num_atoms": num_atoms,
                     "num_electrons": num_electrons,
@@ -584,10 +585,10 @@ class ChgLightningModule(LightningModule):
                 f.write(f"{item}\n")
 
         with open(save_dir / "results.csv", "w") as f:
-            f.write("dataset_idx,nmape,num_atoms,num_electrons,time\n")
+            f.write("dataset_idx,id,nmape,num_atoms,num_electrons,time\n")
             for result in self.test_results:
                 f.write(
-                    f"{result['dataset_idx']},{result['nmape']},{result['num_atoms']},{result['num_electrons']},{result['time']}\n"
+                    f"{result['dataset_idx']},{result['id']},{result['nmape']},{result['num_atoms']},{result['num_electrons']},{result['time']}\n"
                 )
 
         # Log summary statistics

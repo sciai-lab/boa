@@ -67,6 +67,9 @@ def run(cfg: DictConfig):
     model.ema.copy_to(model.parameters())
     model.max_n_probe_per_pass = cfg.get("max_n_probe_per_pass", 10000)
     model.save_test_prediction_folder = cfg.get("save_test_prediction_folder", None)
+    if hasattr(cfg, "overwrite_orb_cutoff"):
+        model.orb_cutoff = cfg.overwrite_orb_cutoff
+        pylogger.info(f"Overwriting orbital cutoff to {model.orb_cutoff}.")
 
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(
         cfg.data.datamodule, _recursive_=False

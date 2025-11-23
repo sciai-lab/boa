@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - override /data: qm9_pyscf_small
+  - override /data/datamodule/dataset/transform: test_small_cutoff
+
+
+ckpt_path: 
+  - "/export/scratch/mklockow/boa/models/train/runs/556_qm9_small_qm9_pyscf_small_small_cutoff__seed-2"
