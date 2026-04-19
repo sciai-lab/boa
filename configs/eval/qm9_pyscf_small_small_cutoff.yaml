@@ -6,4 +6,6 @@ defaults:
 
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/556_qm9_small_qm9_pyscf_small_small_cutoff__seed-2"
+  # - "/export/scratch/mklockow/boa/models/train/runs/556_qm9_small_qm9_pyscf_small_small_cutoff__seed-2"
+  - "/export/scratch/mklockow/boa/models/train/runs/559_qm9_small_qm9_pyscf_small_small_cutoff__seed-3"
+  - "/export/scratch/mklockow/boa/models/train/runs/561_qm9_small_qm9_pyscf_small_small_cutoff__seed-4"
