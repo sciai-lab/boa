@@ -4,6 +4,5 @@ defaults:
   - qm9_vasp_small
 
 ckpt_path:
-  - "/export/scratch/mklockow/boa/models/train/runs/456_qm9_small_qm9_vasp_small__use_abs-False__use_radial_correction-False__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/444_qm9_small_qm9_vasp_small__use_abs-False__use_radial_correction-False__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/446_qm9_small_qm9_vasp_small__use_abs-False__use_radial_correction-False__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

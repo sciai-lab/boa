@@ -11,6 +11,5 @@ data:
       mol_name: malonaldehyde
 
 ckpt_path: 
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_34/10061478_malonaldehyde_slurm__seed-2"
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_35/10061479_malonaldehyde_slurm__seed-3"
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_36/10061480_malonaldehyde_slurm__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

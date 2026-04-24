@@ -9,6 +9,5 @@ data:
       mol_name: ethane
 
 ckpt_path:
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_40/10061484_ethane_slurm__seed-2"
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_41/10061485_ethane_slurm__seed-3"
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_42/10061486_ethane_slurm__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

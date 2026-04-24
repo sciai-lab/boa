@@ -5,6 +5,5 @@ defaults:
   - override /data/datamodule/dataset/transform: test_default
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/437_qm9_small_qm9_vasp_small__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/431_qm9_small_qm9_vasp_small__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/430_qm9_small_qm9_vasp_small__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

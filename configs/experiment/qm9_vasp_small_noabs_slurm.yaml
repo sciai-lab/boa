@@ -1,8 +1,0 @@
-# @package _global_
-
-defaults:
-  - qm9_vasp_small_noabs
-  - override /trainer: slurm
-  - override /hydra: slurm
-
-name: qm9_vasp_small_noabs

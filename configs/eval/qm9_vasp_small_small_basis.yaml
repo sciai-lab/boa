@@ -9,6 +9,5 @@ data:
     basis: "def2-SVP"
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/494_qm9_small_qm9_vasp_small_small_basis__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/495_qm9_small_qm9_vasp_small_small_basis__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/496_qm9_small_qm9_vasp_small_small_basis__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

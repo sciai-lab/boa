@@ -1,8 +1,0 @@
-# @package _global_
-
-defaults:
-  - malonaldehyde
-  - override /trainer: slurm
-  - override /hydra: slurm
-
-name: malonaldehyde

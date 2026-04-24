@@ -9,6 +9,5 @@ data:
     basis: "gth-tzv2p"
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/543_qm9_small_qm9_vasp_small_gth_basis__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/544_qm9_small_qm9_vasp_small_gth_basis__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/545_qm9_small_qm9_vasp_small_gth_basis__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

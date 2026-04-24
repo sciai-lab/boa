@@ -1,8 +1,0 @@
-# @package _global_
-
-defaults:
-  - benzene
-  - override /trainer: slurm
-  - override /hydra: slurm
-
-name: benzene

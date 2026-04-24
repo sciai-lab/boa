@@ -11,6 +11,5 @@ data:
       mol_name: ethanol
 
 ckpt_path:
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_37/10061481_ethanol_slurm__seed-2"
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_38/10061482_ethanol_slurm__seed-3"
-  - "/export/data/ialgroup/mklockow/boa/helix_models/train/slurm_multiruns/run_39/10061483_ethanol_slurm__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

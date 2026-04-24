@@ -5,4 +5,5 @@ defaults:
   - override /data/datamodule/dataset/transform: test_default
 
 ckpt_path: 
-  - "/export/scratch/mklockow/boa/models/train/runs/529_qm9_small_qm9_vasp_small_linear_basis_etb__use_radial_correction-False__seed-2"
+  - "path/to/model1"
+  - "path/to/model2"

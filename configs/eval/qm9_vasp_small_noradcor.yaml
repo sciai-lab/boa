@@ -4,6 +4,5 @@ defaults:
   - qm9_vasp_small
 
 ckpt_path:
-  - "/export/scratch/mklockow/boa/models/train/runs/453_qm9_small_qm9_vasp_small_noradcor__seed-2"
-  - "/export/scratch/mklockow/boa/models/train/runs/429_qm9_small_qm9_vasp_small_noradcor__seed-3"
-  - "/export/scratch/mklockow/boa/models/train/runs/432_qm9_small_qm9_vasp_small_noradcor__seed-4"
+  - "path/to/model1"
+  - "path/to/model2"

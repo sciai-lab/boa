@@ -1,8 +1,0 @@
-# @package _global_
-
-defaults:
-  - qm9_pyscf_small
-  - override /trainer: slurm
-  - override /hydra: slurm
-
-name: qm9_pyscf_small
