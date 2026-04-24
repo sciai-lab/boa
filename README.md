@@ -17,6 +17,10 @@ BOA_DATA=""
 BOA_MODELS=""
 ```
 
+## Data setup
+
+Detailed instructions for MD and QM9 data setup will follow soon.
+
 ## Training
 
 ```bash

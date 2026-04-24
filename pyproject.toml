@@ -8,12 +8,9 @@ version = "0.0.1"
 description = "Basis Overlap Architecture (BOA)"
 readme = "README.md"
 requires-python = ">=3.9"
+classifiers = ["Private :: Do Not Upload"]
 authors = [
     {name = "Manuel V. Klockow", email = "manuel.klockow@iwr.uni-heidelberg.de"}
-]
-dependencies = [
-    "lightning",
-    "hydra-core",
 ]
 
 [project.urls]
@@ -26,24 +23,6 @@ Homepage = "https://github.com/ManuelHei/boa"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["boa*"]
-
-[tool.pytest.ini_options]
-addopts = [
-  "--color=yes",
-  "--durations=0",
-  "--strict-markers",
-  "--doctest-modules",
-]
-filterwarnings = [
-  "ignore::DeprecationWarning",
-  "ignore::UserWarning",
-]
-log_cli = "True"
-markers = [
-  "slow: slow tests",
-]
-minversion = "6.0"
-testpaths = "tests/"
 
 [tool.isort]
 known_first_party = ["scdp", "mldft"]
