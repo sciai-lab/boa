@@ -8,6 +8,9 @@ import warnings
 from typing import Optional
 
 import torch
+from tensorframes.lframes import LFrames
+from tensorframes.nn.tfmessage_passing import TFMessagePassing
+from tensorframes.reps import Irreps
 from torch import Tensor, nn
 from torch.nn import Linear
 from torch_geometric.nn.norm.layer_norm import LayerNorm
@@ -17,9 +20,6 @@ from torch_geometric.utils import softmax
 from mldft.ml.models.components.mlp import MLP
 from mldft.ml.models.components.node_embedding import smooth_falloff
 from mldft.utils.log_utils.logging_mixin import LoggingMixin
-from tensorframes.lframes import LFrames
-from tensorframes.nn.tfmessage_passing import TFMessagePassing
-from tensorframes.reps import Irreps
 
 
 class G3DLayerTF(TFMessagePassing, LoggingMixin):

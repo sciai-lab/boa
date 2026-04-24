@@ -9,12 +9,19 @@ import torch
 from pyscf import dft, gto
 from pyscf.dft.gen_grid import LEBEDEV_NGRID, libdft
 
-from mldft.ofdft.libxc_functionals import string_to_prune
 from mldft.utils.coeffs_to_grid import coeffs_to_rho_and_derivatives
+
+STRING_TO_PRUNE = {
+    "nwchem_prune": dft.nwchem_prune,
+    "treutler_prune": dft.treutler_prune,
+    "sg1_prune": dft.sg1_prune,
+    "None": None,
+}
+PRUNE_TO_STRING = {v: k for k, v in STRING_TO_PRUNE.items()}
 
 
 def grid_setup(
-    mol: gto.Mole, grid_level: int = 3, prune: str | Callable = "nwchem_prune"
+    mol: gto.Mole, grid_level: int = 3, prune: str | Callable | None = "nwchem_prune"
 ) -> dft.Grids:
     r"""Sets up a grid for numerical calculations of the exchange correlation potential.
 
@@ -29,9 +36,11 @@ def grid_setup(
     Raises:
         NotImplementedError : if the specified pruning method is not known.
     """
-    if not callable(prune):
-        if prune in string_to_prune.keys():
-            prune = string_to_prune[prune]
+    if prune is None:
+        prune = STRING_TO_PRUNE["None"]
+    elif not callable(prune):
+        if prune in STRING_TO_PRUNE.keys():
+            prune = STRING_TO_PRUNE[prune]
         else:
             raise NotImplementedError(f"The pruning method '{prune}' is not supported.")
     grid = dft.Grids(mol)

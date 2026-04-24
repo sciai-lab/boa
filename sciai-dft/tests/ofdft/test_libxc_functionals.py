@@ -81,7 +81,7 @@ def test_eval_libxc_functionals(molecule_medium, kinetic_functional, xc_function
     )
     assert isinstance(energy, list)
     assert isinstance(potential_vector, np.ndarray)
-    assert potential_vector.dtype == np.floating
+    assert potential_vector.dtype == np.float64
 
 
 def gradient_finite_differences(functional, coeffs, delta=1e-6):
@@ -115,7 +115,10 @@ def test_functional_potential(molecule_small, libxc_key):
 
     ao = dft.numint.eval_ao(molecule_small, grid.coords, deriv=max_deriv)
     functional = partial(
-        libxc_functionals.eval_libxc_functionals, functionals=libxc_key, grid=grid, ao=ao
+        libxc_functionals.eval_libxc_functionals,
+        functionals=libxc_key,
+        grid=grid,
+        ao=ao,
     )
 
     np.random.seed(0)

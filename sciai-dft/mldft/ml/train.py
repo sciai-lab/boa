@@ -1,36 +1,15 @@
 """Main entry point for training."""
+
 from pathlib import Path
 from random import randint
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
 import lightning as L
-import rootutils
+import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, OmegaConf, open_dict
-
-from mldft.utils.instantiators import instantiate_callbacks, instantiate_loggers
-from mldft.utils.log_utils.config_in_tensorboard import log_config_text_to_tensorboard
-
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
-# ------------------------------------------------------------------------------------ #
-# the setup_root above is equivalent to:
-# - adding project root dir to PYTHONPATH
-#       (so you don't need to force user to install project as a package)
-#       (necessary before importing any local modules e.g. `from src import utils`)
-# - setting up PROJECT_ROOT environment variable
-#       (which is used as a base for paths in "configs/paths/config.yaml")
-#       (this way all filepaths are the same no matter where you run the code)
-# - loading environment variables from ".env" in root dir
-#
-# you can remove it if you:
-# 1. either install project as a package or move entry files to project root dir
-# 2. set `root_dir` to "." in "configs/paths/config.yaml"
-#
-# more info: https://github.com/ashleve/rootutils
-# ------------------------------------------------------------------------------------ #
-import torch
 
 # this import registers custom omegaconf resolvers
 import mldft.utils.omegaconf_resolvers  # noqa
@@ -41,6 +20,8 @@ from mldft.utils import (
     log_hyperparameters,
     task_wrapper,
 )
+from mldft.utils.instantiators import instantiate_callbacks, instantiate_loggers
+from mldft.utils.log_utils.config_in_tensorboard import log_config_text_to_tensorboard
 
 log = RankedLogger(__name__, rank_zero_only=True)
 

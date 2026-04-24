@@ -29,7 +29,6 @@ from pathlib import Path
 
 import hydra
 import lightning as L
-import rootutils
 import torch
 from omegaconf import DictConfig
 
@@ -40,7 +39,6 @@ from mldft.ml.preprocess.dataset_statistics import DatasetStatistics
 from mldft.utils import RankedLogger, extras, task_wrapper
 from mldft.utils.utils import set_default_torch_dtype
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
 # - adding project root dir to PYTHONPATH

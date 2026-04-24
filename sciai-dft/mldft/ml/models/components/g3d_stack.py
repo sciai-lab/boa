@@ -7,8 +7,9 @@ from mldft.ml.models.components.g3d_layer import G3DLayer
 
 # set tensorframes to None if not available
 try:
-    from mldft.ml.models.components.g3d_layer_tf import G3DLayerTF
     from tensorframes.lframes import LFrames
+
+    from mldft.ml.models.components.g3d_layer_tf import G3DLayerTF
 except ImportError:
     G3DLayerTF = None
     LFrames = None
@@ -22,7 +23,7 @@ class G3DStack(nn.Module):
         g3d_class: G3DLayer,
         n_layers: int,
         energy_readout_every: int | None = None,
-        **g3d_kwargs
+        **g3d_kwargs,
     ) -> None:
         """The G3DStack module is a stack of
         :class:`~mldft.ml.models.components.g3d_layer.G3DLayer`.

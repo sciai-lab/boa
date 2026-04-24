@@ -1,6 +1,6 @@
 """Definition of the :class:`OFData` class, whose instances are the inputs to the model."""
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ from mldft.utils import RankedLogger
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-class StrEnumwithCheck(Enum):
+class StrEnumwithCheck(StrEnum):
     """Enum with a check if a value is in the enum."""
 
     @classmethod
@@ -494,7 +494,7 @@ class OFData(Data):
 
         sample = cls.construct_new(
             basis_info=basis_info,
-            pos=mol.atom_coords(unit="Angstrom"),
+            pos=mol.atom_coords(),
             atomic_numbers=mol.atom_charges(),
             coeffs=np.zeros(mol.nao),
             add_irreps=basis_info is not None,

@@ -3,6 +3,8 @@ from functools import partial
 
 import numpy as np
 import torch
+from loguru import logger
+from pyscf import dft
 from torch_geometric.nn import radius_graph
 
 from mldft.ml.data.components.basis_info import BasisInfo
@@ -13,6 +15,7 @@ from mldft.ofdft.basis_integrals import (
     get_nuclear_attraction_vector,
     get_overlap_matrix,
 )
+from mldft.utils.grids import grid_setup
 from mldft.utils.molecules import build_molecule_ofdata
 from mldft.utils.sparse import construct_block_diag_coo_indices_and_shape
 
@@ -174,7 +177,9 @@ class ToTorch:
     """Convert all numpy arrays in the sample to torch tensors."""
 
     def __init__(
-        self, device: torch.device = None, float_dtype: np.dtype | torch.dtype | None = None
+        self,
+        device: torch.device = None,
+        float_dtype: np.dtype | torch.dtype | None = None,
     ):
         """Initialize the transform.
 
@@ -360,7 +365,9 @@ class AddNuclearAttractionVector:
         )
 
         sample.add_item(
-            "nuclear_attraction_vector", nuclear_attraction_vector, Representation.DUAL_VECTOR
+            "nuclear_attraction_vector",
+            nuclear_attraction_vector,
+            Representation.DUAL_VECTOR,
         )
         return sample
 
@@ -407,4 +414,57 @@ class AddMol:
         mol = build_molecule_ofdata(sample, self.basis_info.basis_dict)
 
         sample.add_item("mol", mol, Representation.NONE)
+        return sample
+
+
+class PrepareForDensityOptimization:
+    def __init__(
+        self,
+        basis_info: BasisInfo,
+        add_grid: bool = False,
+        grid_level: int = 2,
+        grid_prune: str = "nwchem_prune",
+    ):
+        """Transform adding the necessary information for density optimization."""
+        self.basis_info = basis_info
+        self.add_grid = add_grid
+        self.grid_level = grid_level
+        self.grid_prune = grid_prune
+
+    def __call__(self, sample: OFData) -> OFData:
+        """Prepare the sample for density optimization.
+
+        Args:
+            sample: The sample.
+
+        Returns:
+            OFData: The prepared sample.
+        """
+        mol = build_molecule_ofdata(sample, self.basis_info.basis_dict)
+        sample.add_item("mol", mol, representation=Representation.NONE)
+        if not hasattr(sample, "basis_info"):
+            sample.add_item("basis_info", self.basis_info, representation=Representation.NONE)
+        if not hasattr(sample, "overlap_matrix"):
+            sample = AddOverlapMatrix(basis_info=self.basis_info)(sample)
+        if not hasattr(sample, "coulomb_matrix"):
+            coulomb_matrix = get_coulomb_matrix(mol)
+            sample.add_item(
+                "coulomb_matrix",
+                coulomb_matrix,
+                representation=Representation.BILINEAR_FORM,
+            )
+        if not hasattr(sample, "nuclear_attraction_vector"):
+            nuclear_attraction_vector = get_nuclear_attraction_vector(mol)
+            sample.add_item(
+                "nuclear_attraction_vector",
+                nuclear_attraction_vector,
+                representation=Representation.DUAL_VECTOR,
+            )
+        if self.add_grid:
+            logger.info("Adding grid to sample.")
+            grid = grid_setup(mol, self.grid_level, self.grid_prune)
+            sample.add_item("grid_level", self.grid_level, representation=Representation.NONE)
+            sample.add_item("grid_prune", self.grid_prune, representation=Representation.NONE)
+            ao = np.asarray(dft.numint.eval_ao(mol, grid.coords, deriv=1))
+            sample.add_item("ao", ao, representation=Representation.AO)
         return sample

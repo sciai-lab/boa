@@ -14,8 +14,7 @@ from hydra.utils import instantiate
 from loguru import logger
 from matplotlib import pyplot as plt
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pyscf import dft
-from rootutils import rootutils
+from pyscf import gto
 from tqdm import tqdm
 
 import mldft.utils.omegaconf_resolvers  # noqa
@@ -24,26 +23,27 @@ from mldft.ml.data.components.basis_transforms import (
     transform_tensor,
 )
 from mldft.ml.data.components.convert_transforms import (
-    AddOverlapMatrix,
+    PrepareForDensityOptimization,
     str_to_torch_float_dtype,
+    to_torch,
 )
 from mldft.ml.data.components.dataset import OFDataset
 from mldft.ml.data.components.loader import OFLoader
 from mldft.ml.data.components.of_data import BasisInfo, OFData, Representation
 from mldft.ml.models.mldft_module import MLDFTLitModule
 from mldft.ml.preprocess.dataset_statistics import DatasetStatistics
-from mldft.ofdft.basis_integrals import (
-    get_coulomb_matrix,
-    get_nuclear_attraction_vector,
-)
 from mldft.ofdft.callbacks import ConvergenceCallback
-from mldft.ofdft.density_optimization import run_density_optimization
+from mldft.ofdft.density_optimization import (
+    density_optimization,
+    density_optimization_with_label,
+)
 from mldft.ofdft.energies import Energies
 from mldft.ofdft.functional_factory import FunctionalFactory, requires_grid
-from mldft.ofdft.optimizer import Optimizer
+from mldft.ofdft.optimizer import DEFAULT_DENSITY_OPTIMIZER, Optimizer
 from mldft.utils import extras
 from mldft.utils.environ import get_mldft_data_path, get_mldft_model_path
-from mldft.utils.molecules import build_molecule_ofdata
+from mldft.utils.instantiators import instantiate_model
+from mldft.utils.molecules import check_atom_types
 from mldft.utils.pdf_utils import HierarchicalPlotPDF
 from mldft.utils.plotting.density_optimization import plot_density_optimization
 from mldft.utils.plotting.summary_density_optimization import (
@@ -54,8 +54,6 @@ from mldft.utils.plotting.summary_density_optimization import (
 from mldft.utils.pyscf_pretty_print import mole_to_sum_formula
 from mldft.utils.sad_guesser import SADNormalizationMode
 from mldft.utils.utils import set_default_torch_dtype
-
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 
 def parse_run_path(run_path: Path | str) -> Path:
@@ -149,60 +147,6 @@ def add_density_optimization_trajectories_to_sample(
         representation=Representation.VECTOR,
     )
     return sample
-
-
-class PrepareForDensityOptimization:
-    def __init__(
-        self,
-        basis_info: BasisInfo,
-        add_grid: bool = False,
-        grid_level: int = 2,
-        grid_prune: str = "nwchem_prune",
-    ):
-        """Transform adding the necessary information for density optimization."""
-        self.basis_info = basis_info
-        self.add_grid = add_grid
-        self.grid_level = grid_level
-        self.grid_prune = grid_prune
-
-    def __call__(self, sample: OFData) -> OFData:
-        """Prepare the sample for density optimization.
-
-        Args:
-            sample (OFData): The sample.
-
-        Returns:
-            OFData: The prepared sample.
-        """
-        mol = build_molecule_ofdata(sample, self.basis_info.basis_dict)
-        sample.add_item("mol", mol, representation=Representation.NONE)
-        if not hasattr(sample, "basis_info"):
-            sample.add_item("basis_info", self.basis_info, representation=Representation.NONE)
-        if not hasattr(sample, "overlap_matrix"):
-            sample = AddOverlapMatrix(basis_info=self.basis_info)(sample)
-        if not hasattr(sample, "coulomb_matrix"):
-            coulomb_matrix = get_coulomb_matrix(mol)
-            sample.add_item(
-                "coulomb_matrix", coulomb_matrix, representation=Representation.BILINEAR_FORM
-            )
-        if not hasattr(sample, "nuclear_attraction_vector"):
-            nuclear_attraction_vector = get_nuclear_attraction_vector(mol)
-            sample.add_item(
-                "nuclear_attraction_vector",
-                nuclear_attraction_vector,
-                representation=Representation.DUAL_VECTOR,
-            )
-        if self.add_grid:
-            logger.info("Adding grid to sample.")
-            grid = dft.Grids(mol)
-            grid.level = self.grid_level
-            grid.prune = self.grid_prune
-            grid = grid.build()
-            sample.add_item("grid_level", self.grid_level, representation=Representation.NONE)
-            sample.add_item("grid_prune", self.grid_prune, representation=Representation.NONE)
-            ao = np.asarray(dft.numint.eval_ao(mol, grid.coords, deriv=1))
-            sample.add_item("ao", ao, representation=Representation.AO)
-        return sample
 
 
 def configure_dataset_indices(
@@ -360,7 +304,12 @@ def worker(
                 f"{sample.mol_id:<15} on worker {process_idx} ({i + 1}/{dataset_length}), "
             )
             callback = ConvergenceCallback()
-            metric_dict, callback, energies_label = run_density_optimization(
+            (
+                metric_dict,
+                callback,
+                energies_label,
+                energy_functional,
+            ) = density_optimization_with_label(
                 sample,
                 sample.mol,
                 optimizer,
@@ -404,7 +353,10 @@ def worker(
                 sample = add_density_optimization_trajectories_to_sample(
                     sample, callback, energies_label, basis_info, save_coeff_interval
                 )
-                torch.save(sample, save_dir / "sample_trajectories" / f"sample_{sample.mol_id}.pt")
+                torch.save(
+                    sample,
+                    save_dir / "sample_trajectories" / f"sample_{sample.mol_id}.pt",
+                )
             if plot_queue is not None and i % plot_every_n == 0:
                 plot_path = tempfile.gettempdir() + f"/sample_{sample.mol_id}.pt"
                 torch.save((sample, callback, energies_label), plot_path)
@@ -634,7 +586,12 @@ def run_ofdft(
     if log_file is not None:
         log_file = Path(log_file)
         logger.add(
-            log_file, level="TRACE", rotation="10 MB", enqueue=True, backtrace=True, diagnose=True
+            log_file,
+            level="TRACE",
+            rotation="10 MB",
+            enqueue=True,
+            backtrace=True,
+            diagnose=True,
         )
         logger.info(f'Logging to "{log_file}"')
     run_path = parse_run_path(run_path)
@@ -778,6 +735,195 @@ def run_ofdft(
         l1_grid_prune=l1_grid_prune,
         swarm_plot_subsample=swarm_plot_subsample,
     )
+
+
+def calculate_basis_size(mol: gto.Mole, basis_info: BasisInfo) -> int:
+    """Calculate the size of the basis set for a given molecule.
+
+    Args:
+        mol: The molecule.
+        basis_info: The basis information object.
+
+    Returns:
+        The number of basis functions.
+    """
+    n_basis = 0
+    for atom_number in mol.atom_charges():
+        atom_index = basis_info.atomic_number_to_atom_index[atom_number]
+        n_basis += basis_info.basis_dim_per_atom[atom_index]
+
+    return n_basis
+
+
+class SampleGenerator:
+    """Class to generate samples from the model configuration.
+
+    Attributes:
+        model_config: The model configuration.
+        model: The model.
+        transforms: The transforms.
+        basis_info: The basis information.
+        negative_integrated_density_penalty_weight: The weight for the negative integrated density penalty.
+    """
+
+    def __init__(
+        self,
+        model_config: DictConfig,
+        model: MLDFTLitModule,
+        negative_integrated_density_penalty_weight: float = 0.0,
+        transform_device: str | torch.device = "cpu",
+    ) -> None:
+        """Initialize the SampleGenerator.
+
+        Args:
+            model_config: The model configuration.
+            model: The model.
+            negative_integrated_density_penalty_weight: The weight for the negative integrated density penalty.
+        """
+        basis_info = instantiate(model_config.data.basis_info)
+
+        transforms = instantiate(model_config.data.transforms)
+        add_grid = requires_grid(
+            model_config.data.target_key, negative_integrated_density_penalty_weight
+        )
+        transforms.pre_transforms.insert(
+            0, PrepareForDensityOptimization(basis_info, add_grid=add_grid)
+        )
+        transforms.add_transformation_matrix = True
+        transforms.use_cached_data = False
+
+        self.negative_integrated_density_penalty_weight = (
+            negative_integrated_density_penalty_weight
+        )
+        self.model = model
+        self.transforms = transforms
+        self.model_config = model_config
+        self.basis_info = basis_info
+
+        if transform_device == "cuda":
+            self.transforms.device = "cuda"
+
+    @classmethod
+    def from_run_path(
+        cls,
+        run_path: str | Path,
+        device: str | torch.device = "cuda",
+        transform_device: str | torch.device = "cpu",
+        negative_integrated_density_penalty_weight: float = 0.0,
+        use_last_ckpt: bool = True,
+    ) -> "SampleGenerator":
+        """Create a SampleGenerator from a run path.
+
+        Args:
+            run_path: The run path.
+            device: The device to load the model on.
+            transform_device: The device to apply the transforms on.
+            negative_integrated_density_penalty_weight: The weight for the negative integrated density penalty.
+            ckpt_choice:
+
+        Returns:
+            The instantiated SampleGenerator
+        """
+        torch.set_default_dtype(torch.float64)
+        run_path = parse_run_path(run_path)
+        checkpoint_path = run_to_checkpoint_path(run_path, use_last_ckpt=use_last_ckpt)
+        model_config_path = run_path / "hparams.yaml"
+        model_config = OmegaConf.load(model_config_path)
+        model = instantiate_model(checkpoint_path, device)
+
+        return cls(
+            model_config,
+            model,
+            negative_integrated_density_penalty_weight,
+            transform_device=transform_device,
+        )
+
+    def get_sample_from_mol(self, mol: gto.Mole) -> OFData:
+        """Get a sample from a molecule with the appropriate transforms applied.
+
+        Args:
+            mol: The molecule.
+
+        Returns:
+            The OFData sample.
+        """
+        # check that the molecule only contains allowed atom types by comparing to the
+        # basis info of the model
+        check_atom_types(mol, self.basis_info.atomic_numbers)
+
+        n_basis = calculate_basis_size(mol, self.basis_info)
+
+        sample = OFData.construct_new(
+            basis_info=self.basis_info,
+            pos=mol.atom_coords(unit="Bohr"),
+            atomic_numbers=mol.atom_charges(),
+            coeffs=np.zeros(n_basis),
+            dual_basis_integrals="infer_from_basis",
+            add_irreps=True,
+        )
+        sample = self.transforms.forward(sample)
+        sample.mol.charge = mol.charge
+        sample = to_torch(sample, device=self.model.device)
+        return sample
+
+    def get_functional_factory(self, xc_functional: str | None = None) -> FunctionalFactory:
+        """Get a functional factory for the model and its config.
+
+        Args:
+            xc_functional: The XC functional to use.
+
+        Returns:
+            The functional factory.
+        """
+        return FunctionalFactory.from_module(
+            self.model,
+            xc_functional,
+            negative_integrated_density_penalty_weight=self.negative_integrated_density_penalty_weight,
+        )
+
+
+def run_singlepoint_ofdft(
+    mol: gto.Mole,
+    sample_generator: SampleGenerator,
+    func_factory: FunctionalFactory,
+    optimizer: Optimizer = DEFAULT_DENSITY_OPTIMIZER,
+    initial_guess_str: str = "minao",
+    callback: ConvergenceCallback | None = None,
+    ofdft_kwargs=None,
+    return_sample: bool = False,
+) -> tuple[Energies, torch.Tensor, bool] | tuple[Energies, torch.Tensor, bool, OFData]:
+    """Run a single-point OFDFT calculation for the given molecule.
+
+    Args:
+        mol: The molecule.
+        sample_generator: The sample generator.
+        func_factory: The functional factory.
+        optimizer: The optimizer.
+        initial_guess_str: The initial guess.
+        callback: The callback.
+        ofdft_kwargs: Additional keyword arguments for density optimization.
+        return_sample: Whether to return the sample as well.
+
+    Returns:
+        The final energies, coefficients and whether the calculation converged.
+        If return_sample is True, also returns the OFData sample.
+    """
+    if ofdft_kwargs is None:
+        ofdft_kwargs = dict()
+    sample = sample_generator.get_sample_from_mol(mol)
+    final_energies, final_coeffs, converged, _ = density_optimization(
+        sample,
+        sample.mol,
+        optimizer,
+        func_factory,
+        callback,
+        initialization=initial_guess_str,
+        **ofdft_kwargs,
+    )
+    if return_sample:
+        return final_energies, final_coeffs, converged, sample
+    else:
+        return final_energies, final_coeffs, converged
 
 
 @hydra.main(version_base="1.3", config_path="../../configs/ofdft", config_name="ofdft.yaml")

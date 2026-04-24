@@ -31,7 +31,6 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 import hydra
-import rootutils
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from pyscf import gto
@@ -46,8 +45,6 @@ from mldft.utils.multiprocess import (
     unpack_args_for_imap,
 )
 from mldft.utils.pyscf_pretty_print import mole_to_sum_formula
-
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 
 def check_config(cfg: DictConfig, path: Path) -> None:

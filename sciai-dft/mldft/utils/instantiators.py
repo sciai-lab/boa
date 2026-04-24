@@ -1,12 +1,14 @@
 from typing import List
 
 import hydra
+import torch
 from lightning import Callback
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, open_dict
 
 from mldft.ml.data.components.of_data import Representation
 from mldft.ml.data.datamodule import OFDataModule
+from mldft.ml.models.mldft_module import MLDFTLitModule
 from mldft.utils.log_utils import pylogger
 
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
@@ -62,6 +64,28 @@ def instantiate_loggers(logger_cfg: DictConfig) -> List[Logger]:
             logger.append(hydra.utils.instantiate(lg_conf))
 
     return logger
+
+
+def instantiate_model(
+    checkpoint_path,
+    device: str | torch.device,
+    model_dtype: torch.dtype = torch.float64,
+) -> MLDFTLitModule:
+    """Instantiate a model from a checkpoint.
+
+    Args:
+        checkpoint_path: The path to the checkpoint.
+        device: The device to load the model on.
+        model_dtype: The dtype of the model.
+        deterministic: Whether the model should be deterministic.
+
+    Returns:
+        The instantiated model.
+    """
+    lightning_module = MLDFTLitModule.load_from_checkpoint(checkpoint_path, map_location=device)
+    lightning_module.eval()
+    lightning_module.to(model_dtype)
+    return lightning_module
 
 
 def instantiate_datamodule(

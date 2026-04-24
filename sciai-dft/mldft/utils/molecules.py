@@ -94,7 +94,7 @@ def build_molecule_np(
     charges: np.ndarray,
     positions: np.ndarray,
     basis: str | dict | None = "6-31G(2df,p)",
-    unit: str = "Angstrom",
+    unit: str = "Bohr",
     output: Optional[str] = None,
     spin: Optional[int] = None,
 ) -> gto.Mole:
@@ -202,7 +202,7 @@ def build_molecule_ofdata(
         charges=charges,
         positions=positions,
         basis=basis,
-        unit="Angstrom",
+        unit="Bohr",
         spin=spin,
     )
 
@@ -513,3 +513,20 @@ def geometry_to_string(mol: gto.Mole, unit: str = "Angstrom"):
         f"{mol.atom_symbol(i)} {mol.atom_coord(i, unit=unit)[0]:.8f} {mol.atom_coord(i, unit=unit)[1]:.8f} {mol.atom_coord(i, unit=unit)[2]:.8f}"
         for i in range(mol.natm)
     )
+
+
+def check_atom_types(mol: gto.Mole, atom_types: np.ndarray) -> None:
+    """Check if all atoms in the molecule are of a certain type.
+
+    Args:
+        mol: The molecule.
+        atom_types: The atom types to check for.
+
+    Raises:
+        AssertionError: If an atom in the molecule is not of the specified type.
+    """
+    atom_charges = np.unique(mol.atom_charges())
+
+    assert all(
+        atom in atom_types for atom in atom_charges
+    ), f"Allowed atoms {atom_types}, found {atom_charges}"

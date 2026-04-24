@@ -122,7 +122,7 @@ def test_get_gga_potential_matrix(molecule_ao_grid_level_5):
     matrix = get_gga_potential_matrix(ao, potential, grid)
 
     assert matrix.shape == (mol.nao, mol.nao)
-    assert matrix.dtype == np.floating
+    assert matrix.dtype == np.float64
     assert np.all(np.isfinite(matrix))
 
 

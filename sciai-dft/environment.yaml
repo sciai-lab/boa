@@ -73,4 +73,5 @@ dependencies:
       - basis_set_exchange
       - torch_geometric==2.6.1
       - gitpython
-      - timm
+      - huggingface_hub==0.*
+      - git+https://github.com/sciai-lab/tensor_frames.git@cd1addfd3c82a47095c9961ab999dcabfab4c21d
